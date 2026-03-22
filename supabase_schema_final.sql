@@ -156,13 +156,28 @@ DROP POLICY IF EXISTS "Anyone can post jobs" ON jobs;
 CREATE POLICY "Anyone can view jobs" ON jobs FOR SELECT USING (true);
 CREATE POLICY "Anyone can post jobs" ON jobs FOR INSERT WITH CHECK (true);
 
--- ENABLE REALTIME on key tables
-ALTER PUBLICATION supabase_realtime ADD TABLE posts;
-ALTER PUBLICATION supabase_realtime ADD TABLE confessions;
-ALTER PUBLICATION supabase_realtime ADD TABLE messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE alerts;
-ALTER PUBLICATION supabase_realtime ADD TABLE marketplace;
-ALTER PUBLICATION supabase_realtime ADD TABLE stories;
+-- ENABLE REALTIME on key tables (Safer approach)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'posts') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE posts;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'confessions') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE confessions;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'messages') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'alerts') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE alerts;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'marketplace') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE marketplace;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'stories') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE stories;
+  END IF;
+END $$;
 
 -- POST COMMENTS
 CREATE TABLE IF NOT EXISTS post_comments (
@@ -177,7 +192,12 @@ DROP POLICY IF EXISTS "Anyone can view comments" ON post_comments;
 DROP POLICY IF EXISTS "Users can post comments" ON post_comments;
 CREATE POLICY "Anyone can view comments" ON post_comments FOR SELECT USING (true);
 CREATE POLICY "Users can post comments" ON post_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
-ALTER PUBLICATION supabase_realtime ADD TABLE post_comments;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'post_comments') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE post_comments;
+  END IF;
+END $$;
 
 -- STORY VIEWS
 CREATE TABLE IF NOT EXISTS story_views (
@@ -206,7 +226,12 @@ DROP POLICY IF EXISTS "Anyone can view story reactions" ON story_reactions;
 DROP POLICY IF EXISTS "Users can react to stories" ON story_reactions;
 CREATE POLICY "Anyone can view story reactions" ON story_reactions FOR SELECT USING (true);
 CREATE POLICY "Users can react to stories" ON story_reactions FOR INSERT WITH CHECK (auth.uid() = user_id);
-ALTER PUBLICATION supabase_realtime ADD TABLE story_reactions;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'story_reactions') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE story_reactions;
+  END IF;
+END $$;
 
 -- ============================================
 -- STORAGE BUCKETS (Run these as well!)
