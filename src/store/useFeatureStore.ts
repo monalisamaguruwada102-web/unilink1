@@ -53,6 +53,17 @@ interface CampusAlert {
   time: string;
 }
 
+interface Post {
+  id: string;
+  user_id: string;
+  content: string;
+  image_url: string;
+  likes: number;
+  created_at: string;
+  users?: { name: string; avatar_url: string; course: string };
+  comment_count?: number;
+}
+
 interface Confession {
   id: string;
   content: string;
@@ -73,6 +84,7 @@ interface FeatureState {
   vibeLabels: string[];
   
   stories: Story[];
+  posts: Post[];
   events: Event[];
   currentPoll: Poll | null;
   marketplaceItems: MarketplaceItem[];
@@ -93,6 +105,13 @@ interface FeatureState {
   submitConfession: (content: string, tags: string[]) => Promise<void>;
   joinEvent: (eventId: string) => Promise<void>;
   addStory: (userId: string, userName: string, imageUrl: string) => Promise<void>;
+  viewStory: (storyId: string, userId: string) => Promise<void>;
+  reactToStory: (storyId: string, userId: string, emoji: string) => Promise<void>;
+  
+  addPost: (post: any) => void;
+  likePost: (postId: string) => Promise<void>;
+  fetchComments: (postId: string) => Promise<any[]>;
+  addComment: (postId: string, userId: string, content: string) => Promise<void>;
   
   fetchFeatures: () => Promise<void>;
   updateUserProfile: (userId: string, updates: any) => Promise<void>;
@@ -111,6 +130,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   vibeLabels: ['Night Owl', 'Library Resident', 'Coffee Addict'],
   
   stories: [],
+  posts: [],
   events: [],
   currentPoll: null,
   marketplaceItems: [],
@@ -162,6 +182,38 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     }
   },
 
+  viewStory: async (storyId, userId) => {
+    await supabase.from('story_views').upsert({ story_id: storyId, user_id: userId });
+    set(state => ({
+      stories: state.stories.map(s => s.id === storyId ? { ...s, is_viewed: true } : s)
+    }));
+  },
+
+  reactToStory: async (storyId, userId, emoji) => {
+    await supabase.from('story_reactions').insert({ story_id: storyId, user_id: userId, emoji });
+  },
+
+  addPost: (post) => set(state => ({ posts: [post, ...state.posts] })),
+
+  likePost: async (postId) => {
+    const post = get().posts.find(p => p.id === postId);
+    if (!post) return;
+    const newLikes = (post.likes || 0) + 1;
+    set(state => ({
+      posts: state.posts.map(p => p.id === postId ? { ...p, likes: newLikes } : p)
+    }));
+    await supabase.from('posts').update({ likes: newLikes }).eq('id', postId);
+  },
+
+  fetchComments: async (postId) => {
+    const { data } = await supabase.from('post_comments').select('*, users(name, avatar_url)').eq('post_id', postId).order('created_at', { ascending: true });
+    return data || [];
+  },
+
+  addComment: async (postId, userId, content) => {
+    await supabase.from('post_comments').insert({ post_id: postId, user_id: userId, content });
+  },
+
   fetchFeatures: async () => {
     const [
       { data: alerts },
@@ -169,14 +221,16 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       { data: jobList },
       { data: eventList },
       { data: confessionList },
-      { data: storyList }
+      { data: storyList },
+      { data: postList }
     ] = await Promise.all([
       supabase.from('alerts').select('*').order('created_at', { ascending: false }),
       supabase.from('marketplace').select('*').limit(6),
       supabase.from('jobs').select('*').limit(10),
       supabase.from('events').select('*'),
       supabase.from('confessions').select('*').order('created_at', { ascending: false }).limit(10),
-      supabase.from('stories').select('*, users(name)')
+      supabase.from('stories').select('*, users(name, avatar_url)').order('created_at', { ascending: false }),
+      supabase.from('posts').select('*, users(name, avatar_url, course), post_comments(count)').order('created_at', { ascending: false })
     ]);
 
     if (alerts) set({ campusAlerts: alerts });
@@ -185,13 +239,21 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     if (eventList) set({ events: eventList });
     if (confessionList) set({ confessions: confessionList });
     
+    if (postList) {
+      set({ posts: postList.map((p: any) => ({
+        ...p,
+        comment_count: p.post_comments?.[0]?.count || 0
+      }))});
+    }
+
     if (storyList && storyList.length > 0) {
-       set({ stories: storyList.map(s => ({
+       set({ stories: storyList.map((s: any) => ({
           ...s,
-          user_name: s.users.name,
+          user_name: s.users?.name || 'Poly Student',
           is_viewed: false
        }))});
-    } else {
+    }
+ else {
        set({ stories: [
          { id: '1', user_id: '1', user_name: 'Nyasha', image_url: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&h=200&fit=crop', is_viewed: false, expires_at: '' },
          { id: '2', user_id: '2', user_name: 'Tinashe', image_url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop', is_viewed: false, expires_at: '' }
@@ -212,6 +274,28 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     // 🟠 REACTIVE REALTIME ENGINE SUBSCRIPTIONS
     // ==========================================
     const channel = supabase.channel('poly_social_network')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload) => {
+        set((state) => ({ 
+          posts: state.posts.some(p => p.id === payload.new.id) 
+            ? state.posts 
+            : [payload.new as Post, ...state.posts] 
+        }));
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'post_comments' }, async (payload) => {
+        // We could fetch latest count or just update local state if we had a detail view
+        // For simple list, we'll just refetch posts to get fresh comment counts if needed, but lets just update local
+        set(state => ({
+          posts: state.posts.map(p => p.id === payload.new.post_id ? { ...p, comment_count: (p.comment_count || 0) + 1 } : p)
+        }));
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'stories' }, async (payload: any) => {
+        const { data: userData } = await supabase.from('users').select('name').eq('id', payload.new.user_id).single();
+        set((state) => ({ 
+          stories: state.stories.some(s => s.id === payload.new.id)
+            ? state.stories
+            : [{ ...payload.new, user_name: userData?.name || 'New Student', is_viewed: false }, ...state.stories] 
+        }));
+      })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'confessions' }, (payload) => {
         set((state) => ({ 
           confessions: state.confessions.some(c => c.id === payload.new.id) 

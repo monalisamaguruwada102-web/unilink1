@@ -162,6 +162,44 @@ ALTER PUBLICATION supabase_realtime ADD TABLE alerts;
 ALTER PUBLICATION supabase_realtime ADD TABLE marketplace;
 ALTER PUBLICATION supabase_realtime ADD TABLE stories;
 
+-- POST COMMENTS
+CREATE TABLE IF NOT EXISTS post_comments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  post_id UUID REFERENCES posts(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE post_comments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone can view comments" ON post_comments FOR SELECT USING (true);
+CREATE POLICY "Users can post comments" ON post_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
+ALTER PUBLICATION supabase_realtime ADD TABLE post_comments;
+
+-- STORY VIEWS
+CREATE TABLE IF NOT EXISTS story_views (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  story_id UUID REFERENCES stories(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(story_id, user_id)
+);
+ALTER TABLE story_views ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can see story views" ON story_views FOR SELECT USING (true);
+CREATE POLICY "Users can record story view" ON story_views FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- STORY REACTIONS
+CREATE TABLE IF NOT EXISTS story_reactions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  story_id UUID REFERENCES stories(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  emoji TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE story_reactions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone can view story reactions" ON story_reactions FOR SELECT USING (true);
+CREATE POLICY "Users can react to stories" ON story_reactions FOR INSERT WITH CHECK (auth.uid() = user_id);
+ALTER PUBLICATION supabase_realtime ADD TABLE story_reactions;
+
 -- ============================================
 -- STORAGE BUCKETS (Run these as well!)
 -- ============================================

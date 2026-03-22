@@ -3,8 +3,24 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
 import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
-import { Heart, X, MapPin, GraduationCap, RefreshCcw, MessageCircle } from 'lucide-react';
+import { Heart, X, MapPin, GraduationCap, RefreshCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371e3; // metres
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) *
+    Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  const d = R * c; // in metres
+  return d;
+}
 
 export default function Discover() {
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -30,7 +46,7 @@ export default function Discover() {
     const likedIds = liked?.map((l: any) => l.liked_id) || [];
     likedIds.push(session.user.id);
 
-    let query = supabase.from('users').select('id, name, age, course, bio, avatar_url, college');
+    let query = supabase.from('users').select('id, name, age, course, bio, avatar_url, college, latitude, longitude');
     if (likedIds.length > 0) {
       query = query.not('id', 'in', `(${likedIds.join(',')})`);
     }
@@ -91,7 +107,23 @@ export default function Discover() {
             <RefreshCcw className="animate-spin mx-auto mb-4 text-primary-500" size={40} />
             <p className="text-xs font-black uppercase tracking-widest">Scanning Campus...</p>
           </div>
-        ) : profiles.length === 0 ? (
+        ) : profiles.length > 0 ? (
+          <div className="w-full max-w-sm h-[520px] relative">
+            <AnimatePresence>
+              {profiles.slice(0, 3).reverse().map((p, i) => (
+                <SwipeCard
+                  key={p.id}
+                  currentProfile={myProfile}
+                  profile={p}
+                  isTop={i === profiles.slice(0, 3).length - 1}
+                  stackIndex={profiles.slice(0, 3).length - 1 - i}
+                  onLike={() => handleSwipe(p.id, 'like')}
+                  onPass={() => handleSwipe(p.id, 'pass')}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+        ) : (
           <div className="text-center p-10">
             <div className="text-6xl mb-6">😅</div>
             <h2 className="text-2xl font-black mb-2">You've seen everyone!</h2>
@@ -102,22 +134,6 @@ export default function Discover() {
             >
               Refresh
             </button>
-          </div>
-        ) : (
-          <div className="w-full max-w-sm h-[520px] relative">
-            <AnimatePresence>
-              {profiles.slice(0, 3).reverse().map((p, i) => (
-                <SwipeCard
-                  key={p.id}
-                  profile={p}
-                  isTop={i === profiles.slice(0, 3).length - 1}
-                  stackIndex={profiles.slice(0, 3).length - 1 - i}
-                  onLike={() => handleSwipe(p.id, 'like')}
-                  onPass={() => handleSwipe(p.id, 'pass')}
-                  isDarkMode={isDarkMode}
-                />
-              ))}
-            </AnimatePresence>
           </div>
         )}
       </div>
@@ -161,7 +177,7 @@ export default function Discover() {
                   onClick={() => { setMatchedUser(null); navigate(`/chat/${matchId}`); }}
                   className="w-full py-5 bg-primary-500 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl shadow-primary-500/30 flex items-center justify-center gap-3"
                 >
-                  <MessageCircle size={20} /> Send a Message
+                  Message Them
                 </button>
                 <button
                   onClick={() => setMatchedUser(null)}
@@ -178,7 +194,7 @@ export default function Discover() {
   );
 }
 
-function SwipeCard({ profile, isTop, stackIndex, onLike, onPass }: any) {
+function SwipeCard({ profile, currentProfile, isTop, stackIndex, onLike, onPass }: any) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
   const likeOpacity = useTransform(x, [20, 80], [0, 1]);
@@ -188,6 +204,16 @@ function SwipeCard({ profile, isTop, stackIndex, onLike, onPass }: any) {
     if (info.offset.x > 100) onLike();
     else if (info.offset.x < -100) onPass();
   };
+
+  const distanceText = (() => {
+    if (!currentProfile?.latitude || !currentProfile?.longitude || !profile.latitude || !profile.longitude) {
+      return 'Kwekwe Poly';
+    }
+    const dist = calculateDistance(currentProfile.latitude, currentProfile.longitude, profile.latitude, profile.longitude);
+    if (dist < 100) return 'Very Close • On Campus';
+    if (dist < 1000) return `${Math.round(dist)}m away`;
+    return `${(dist / 1000).toFixed(1)}km away`;
+  })();
 
   return (
     <motion.div
@@ -226,23 +252,21 @@ function SwipeCard({ profile, isTop, stackIndex, onLike, onPass }: any) {
       </motion.div>
 
       {/* Profile Info */}
-      <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-        <h2 className="text-3xl font-black tracking-tighter mb-1">{profile.name}{profile.age && `, ${profile.age}`}</h2>
+      <div className="absolute bottom-0 left-0 right-0 p-6 text-white pointer-events-none">
+        <h2 className="text-3xl font-black tracking-tighter mb-1 uppercase">{profile.name}{profile.age && `, ${profile.age}`}</h2>
         {profile.course && (
           <p className="flex items-center gap-2 text-sm font-bold opacity-80 mb-1">
             <GraduationCap size={16} /> {profile.course}
           </p>
         )}
-        {profile.college && (
-          <p className="flex items-center gap-2 text-sm font-bold opacity-60">
-            <MapPin size={16} /> {profile.college}
-          </p>
-        )}
+        <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest opacity-60">
+          <MapPin size={14} className="text-primary-400" /> {distanceText}
+        </p>
         {profile.bio && <p className="text-sm opacity-70 mt-3 leading-relaxed line-clamp-2">{profile.bio}</p>}
 
-        {/* Action Buttons */}
+        {/* Action Buttons (Actual buttons remain clickable) */}
         {isTop && (
-          <div className="flex justify-center gap-6 mt-5">
+          <div className="flex justify-center gap-6 mt-5 pointer-events-auto">
             <button
               onClick={onPass}
               className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/30 hover:bg-red-500 transition-colors"

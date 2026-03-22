@@ -20,7 +20,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   fetchProfile: async (userId) => {
     const { data } = await supabase
       .from('users')
-      .select('id, email, name, age, gender, bio, college, course, avatar_url, created_at, updated_at')
+      .select('id, email, name, age, gender, bio, college, course, avatar_url, latitude, longitude, created_at, updated_at')
       .eq('id', userId)
       .maybeSingle();
     if (data) set({ profile: data });

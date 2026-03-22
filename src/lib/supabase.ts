@@ -15,5 +15,7 @@ export type UserProfile = {
   college: string | null;
   course: string | null;
   avatar_url: string | null;
+  latitude: number | null;
+  longitude: number | null;
   created_at: string;
 };
