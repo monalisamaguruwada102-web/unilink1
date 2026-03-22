@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: unilink1
+    env: static
+    buildCommand: npm install && npm run build
+    publishPath: dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: max-age=31536000
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
