@@ -5,7 +5,27 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
 import { Heart, MessageCircle, Image, Send, X, Plus, Lock, MoreHorizontal, Hash, ShieldAlert } from 'lucide-react';
 
+function SkeletonPost({ isDarkMode }: { isDarkMode: boolean }) {
+  return (
+    <div className={`p-4 rounded-3xl animate-pulse space-y-4 mb-6 ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-200'}`} />
+        <div className="space-y-2 flex-1">
+          <div className={`h-3 w-1/3 rounded-full ${isDarkMode ? 'bg-gray-800' : 'bg-gray-200'}`} />
+          <div className={`h-2 w-1/4 rounded-full ${isDarkMode ? 'bg-gray-800' : 'bg-gray-200'}`} />
+        </div>
+      </div>
+      <div className={`w-full aspect-video rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-200'}`} />
+      <div className="flex items-center gap-4">
+         <div className={`h-8 w-1/4 rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-200'}`} />
+         <div className={`h-8 w-1/4 rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-200'}`} />
+      </div>
+    </div>
+  );
+}
+
 export default function Feed() {
+  const [loading, setLoading] = useState(true);
   const [confessionText, setConfessionText] = useState('');
   const [postCaption, setPostCaption] = useState('');
   const [postImage, setPostImage] = useState<File | null>(null);
@@ -28,7 +48,8 @@ export default function Feed() {
   } = useFeatureStore();
 
   useEffect(() => {
-    fetchFeatures();
+    setLoading(true);
+    fetchFeatures().finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -224,82 +245,88 @@ export default function Feed() {
 
       {/* Social Feed Posts */}
       <div className="space-y-4 px-4 pb-10">
-        {posts.length === 0 && (
+        {loading ? (
+          <>
+            <SkeletonPost isDarkMode={isDarkMode} />
+            <SkeletonPost isDarkMode={isDarkMode} />
+          </>
+        ) : posts.length === 0 ? (
           <div className="text-center py-20 opacity-30">
             <Image size={48} className="mx-auto mb-4" />
             <p className="font-black text-sm uppercase tracking-widest">Scanning Campus...</p>
           </div>
-        )}
-        <AnimatePresence>
-          {posts.map((post, idx) => (
-            <motion.div
-              key={post.id}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.05 }}
-              className={`rounded-[2.5rem] overflow-hidden border ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}
-            >
-              {/* Post Header */}
-              <div className="flex items-center justify-between px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-2xl overflow-hidden ring-2 ring-primary-500/20">
-                    {post.users?.avatar_url
-                      ? <img src={post.users.avatar_url} className="w-full h-full object-cover" alt="" />
-                      : <div className="w-full h-full bg-primary-100 flex items-center justify-center font-black text-primary-600">{post.users?.name?.[0]}</div>
-                    }
+        ) : (
+          <AnimatePresence>
+            {posts.map((post, idx) => (
+              <motion.div
+                key={post.id}
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.05 }}
+                className={`rounded-[2.5rem] overflow-hidden border ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}
+              >
+                {/* Post Header */}
+                <div className="flex items-center justify-between px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl overflow-hidden ring-2 ring-primary-500/20">
+                      {post.users?.avatar_url
+                        ? <img src={post.users.avatar_url} className="w-full h-full object-cover" alt="" />
+                        : <div className="w-full h-full bg-primary-100 flex items-center justify-center font-black text-primary-600">{post.users?.name?.[0]}</div>
+                      }
+                    </div>
+                    <div>
+                      <p className="font-black text-sm mb-0.5">{post.users?.name || 'Poly Student'}</p>
+                      <p className="text-[10px] opacity-40 font-bold uppercase tracking-tight">{post.users?.course || 'Campus Resident'}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-black text-sm mb-0.5">{post.users?.name || 'Poly Student'}</p>
-                    <p className="text-[10px] opacity-40 font-bold uppercase tracking-tight">{post.users?.course || 'Campus Resident'}</p>
+                  <button className={`p-3 rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'}`}><MoreHorizontal size={18} /></button>
+                </div>
+
+                {/* Post Image */}
+                {post.image_url && (
+                  <div className="px-3">
+                     <div className="w-full aspect-square rounded-[2rem] overflow-hidden bg-gray-100 dark:bg-gray-800">
+                       <img src={post.image_url} alt="Post" className="w-full h-full object-cover" />
+                     </div>
                   </div>
-                </div>
-                <button className={`p-3 rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'}`}><MoreHorizontal size={18} /></button>
-              </div>
-
-              {/* Post Image */}
-              {post.image_url && (
-                <div className="px-3">
-                   <div className="w-full aspect-square rounded-[2rem] overflow-hidden bg-gray-100 dark:bg-gray-800">
-                     <img src={post.image_url} alt="Post" className="w-full h-full object-cover" />
-                   </div>
-                </div>
-              )}
-
-              {/* Content & Caption */}
-              <div className="p-5">
-                {post.content && (
-                   <p className="text-sm leading-relaxed mb-5 px-1 truncate-3">
-                     <span className="font-black mr-2 uppercase text-xs text-primary-500">{post.users?.name}</span>
-                     <span className="opacity-80 font-medium">{post.content}</span>
-                   </p>
                 )}
 
-                {/* Actions & Stats */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => likePost(post.id, post.user_id, session?.user.id || '')} 
-                      className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl transition ${isDarkMode ? 'bg-primary-500/10 text-primary-500 hover:bg-primary-500 hover:text-white' : 'bg-primary-50 text-primary-600 hover:bg-primary-100'} group`}
-                    >
-                      <Heart size={18} fill={(post.likes > 0) ? "currentColor" : "none"} />
-                      <span className="text-xs font-black">{post.likes || 0}</span>
-                    </button>
-                    <button 
-                      onClick={() => setActiveCommentsPost(post)}
-                      className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition ${isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-50 text-gray-600'}`}
-                    >
-                      <MessageCircle size={18} />
-                      <span className="text-xs font-black">{post.comment_count || 0}</span>
+                {/* Content & Caption */}
+                <div className="p-5">
+                  {post.content && (
+                     <p className="text-sm leading-relaxed mb-5 px-1">
+                       <span className="font-black mr-2 uppercase text-xs text-primary-500">{post.users?.name}</span>
+                       <span className="opacity-80 font-medium">{post.content}</span>
+                     </p>
+                  )}
+
+                  {/* Actions & Stats */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => likePost(post.id, post.user_id, session?.user.id || '')} 
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl transition ${isDarkMode ? 'bg-primary-500/10 text-primary-500 hover:bg-primary-500 hover:text-white' : 'bg-primary-50 text-primary-600 hover:bg-primary-100'} group`}
+                      >
+                        <Heart size={18} fill={(post.likes > 0) ? "currentColor" : "none"} />
+                        <span className="text-xs font-black">{post.likes || 0}</span>
+                      </button>
+                      <button 
+                        onClick={() => setActiveCommentsPost(post)}
+                        className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition ${isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-50 text-gray-600'}`}
+                      >
+                        <MessageCircle size={18} />
+                        <span className="text-xs font-black">{post.comment_count || 0}</span>
+                      </button>
+                    </div>
+                    <button className={`p-3 rounded-2xl ${isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-50 text-gray-600'}`}>
+                      <Send size={18} className="-rotate-12" />
                     </button>
                   </div>
-                  <button className={`p-3 rounded-2xl ${isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-50 text-gray-600'}`}>
-                    <Send size={18} className="-rotate-12" />
-                  </button>
                 </div>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        )}
       </div>
 
       {/* 🎬 STORY VIEWER MODAL */}

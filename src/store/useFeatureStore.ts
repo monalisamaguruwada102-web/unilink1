@@ -198,22 +198,33 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   addPost: (post) => set(state => ({ posts: [post, ...state.posts] })),
 
   likePost: async (postId, postOwnerId, likerId) => {
-    const post = get().posts.find(p => p.id === postId);
+    const originalPosts = get().posts;
+    const post = originalPosts.find(p => p.id === postId);
     if (!post) return;
+
+    // ⚡ Optimistic Update (UI reacts instantly)
     const newLikes = (post.likes || 0) + 1;
     set(state => ({
       posts: state.posts.map(p => p.id === postId ? { ...p, likes: newLikes } : p)
     }));
-    await supabase.from('posts').update({ likes: newLikes }).eq('id', postId);
-    
-    // Notify owner
-    if (postOwnerId !== likerId) {
-       await supabase.from('notifications').insert({
-         user_id: postOwnerId,
-         sender_id: likerId,
-         type: 'like',
-         post_id: postId
-       });
+
+    try {
+      const { error } = await supabase.from('posts').update({ likes: newLikes }).eq('id', postId);
+      if (error) throw error;
+      
+      // Notify owner
+      if (postOwnerId !== likerId) {
+         await supabase.from('notifications').insert({
+           user_id: postOwnerId,
+           sender_id: likerId,
+           type: 'like',
+           post_id: postId
+         });
+      }
+    } catch (err) {
+      // 🔄 Rollback on failure
+      set({ posts: originalPosts });
+      console.error('Like failed, rolled back:', err);
     }
   },
 
