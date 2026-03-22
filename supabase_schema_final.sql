@@ -209,18 +209,4 @@ ALTER PUBLICATION supabase_realtime ADD TABLE story_reactions;
 --   2. "avatars"     (public)
 -- ============================================
 
--- SEED DATA (Demo content)
-INSERT INTO alerts (type, status, location) VALUES
-  ('ZESA', 'Loadshedding: Hall A & B', 'Main Campus'),
-  ('WATER', 'No water on 3rd Floor', 'New Hostel')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO jobs (title, company, type, salary) VALUES
-  ('Math Tutor Needed', 'Student Union', 'Part-time', '$15/hr'),
-  ('Library Assistant', 'Campus Lib', 'Campus Gig', '$10/hr')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO marketplace (title, price, category) VALUES
-  ('Calculus Textbook', '$20', 'Books'),
-  ('Mini Fridge', '$45', 'Appliances')
-ON CONFLICT DO NOTHING;
+-- MIGRATION COMPLETE
