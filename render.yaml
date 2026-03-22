@@ -1,13 +1,9 @@
 services:
-  - type: static
+  - type: web
     name: unilink1
-    buildCommand: npm install --legacy-peer-deps && npm run build
-    staticPublishPath: dist
-    headers:
-      - path: /*
-        name: Cache-Control
-        value: max-age=31536000
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+    runtime: node
+    buildCommand: npm install --legacy-peer-deps && npm run build && cd server && npm install && npm run build
+    startCommand: cd server && npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 18.18.0

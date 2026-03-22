@@ -207,6 +207,38 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
          { label: 'Beans & Cabbage', votes: 30 }
        ]
     }});
+
+    // ==========================================
+    // 🟠 REACTIVE REALTIME ENGINE SUBSCRIPTIONS
+    // ==========================================
+    const channel = supabase.channel('poly_social_network')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'confessions' }, (payload) => {
+        set((state) => ({ 
+          confessions: state.confessions.some(c => c.id === payload.new.id) 
+            ? state.confessions 
+            : [payload.new as Confession, ...state.confessions] 
+        }));
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'alerts' }, (payload) => {
+        set((state) => ({ 
+          campusAlerts: state.campusAlerts.some(a => a.id === payload.new.id)
+            ? state.campusAlerts
+            : [payload.new as CampusAlert, ...state.campusAlerts] 
+        }));
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'marketplace' }, (payload) => {
+        set((state) => ({ 
+          marketplaceItems: state.marketplaceItems.some(i => i.id === payload.new.id)
+            ? state.marketplaceItems
+            : [payload.new as MarketplaceItem, ...state.marketplaceItems] 
+        }));
+      });
+      
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('⚡ Connected to Kwekwe Poly Realtime Social Network feed!');
+      }
+    });
   },
 
   updateUserProfile: async (userId, updates) => {
