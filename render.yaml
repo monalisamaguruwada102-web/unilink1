@@ -1,9 +1,8 @@
 services:
-  - type: web
+  - type: static
     name: unilink1
-    env: static
-    buildCommand: npm install && npm run build
-    publishPath: dist
+    buildCommand: npm install --legacy-peer-deps && npm run build
+    staticPublishPath: dist
     headers:
       - path: /*
         name: Cache-Control
