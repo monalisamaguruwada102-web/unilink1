@@ -274,48 +274,69 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     // 🟠 REACTIVE REALTIME ENGINE SUBSCRIPTIONS
     // ==========================================
     const channel = supabase.channel('poly_social_network')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload) => {
-        set((state) => ({ 
-          posts: state.posts.some(p => p.id === payload.new.id) 
-            ? state.posts 
-            : [payload.new as Post, ...state.posts] 
-        }));
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, async (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const { data: userData } = await supabase.from('users').select('name, avatar_url, course').eq('id', payload.new.user_id).single();
+          set((state) => ({ 
+            posts: state.posts.some(p => p.id === payload.new.id) 
+              ? state.posts 
+              : [{ ...payload.new, users: userData } as Post, ...state.posts] 
+          }));
+        } else if (payload.eventType === 'UPDATE') {
+          set((state) => ({
+            posts: state.posts.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p)
+          }));
+        } else if (payload.eventType === 'DELETE') {
+          set((state) => ({ posts: state.posts.filter(p => p.id === payload.old.id) }));
+        }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'post_comments' }, async (payload) => {
-        // We could fetch latest count or just update local state if we had a detail view
-        // For simple list, we'll just refetch posts to get fresh comment counts if needed, but lets just update local
         set(state => ({
           posts: state.posts.map(p => p.id === payload.new.post_id ? { ...p, comment_count: (p.comment_count || 0) + 1 } : p)
         }));
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'stories' }, async (payload: any) => {
-        const { data: userData } = await supabase.from('users').select('name').eq('id', payload.new.user_id).single();
-        set((state) => ({ 
-          stories: state.stories.some(s => s.id === payload.new.id)
-            ? state.stories
-            : [{ ...payload.new, user_name: userData?.name || 'New Student', is_viewed: false }, ...state.stories] 
-        }));
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stories' }, async (payload: any) => {
+        if (payload.eventType === 'INSERT') {
+          const { data: userData } = await supabase.from('users').select('name').eq('id', payload.new.user_id).single();
+          set((state) => ({ 
+            stories: state.stories.some(s => s.id === payload.new.id)
+              ? state.stories
+              : [{ ...payload.new, user_name: userData?.name || 'New Student', is_viewed: false }, ...state.stories] 
+          }));
+        } else if (payload.eventType === 'DELETE') {
+          set((state) => ({ stories: state.stories.filter(s => s.id === payload.old.id) }));
+        }
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'confessions' }, (payload) => {
-        set((state) => ({ 
-          confessions: state.confessions.some(c => c.id === payload.new.id) 
-            ? state.confessions 
-            : [payload.new as Confession, ...state.confessions] 
-        }));
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'confessions' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          set((state) => ({ 
+            confessions: state.confessions.some(c => c.id === payload.new.id) 
+              ? state.confessions 
+              : [payload.new as Confession, ...state.confessions] 
+          }));
+        }
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'alerts' }, (payload) => {
-        set((state) => ({ 
-          campusAlerts: state.campusAlerts.some(a => a.id === payload.new.id)
-            ? state.campusAlerts
-            : [payload.new as CampusAlert, ...state.campusAlerts] 
-        }));
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'alerts' }, (payload) => {
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          set((state) => ({ 
+            campusAlerts: state.campusAlerts.some(a => a.id === payload.new.id)
+              ? state.campusAlerts.map(a => a.id === payload.new.id ? payload.new as CampusAlert : a)
+              : [payload.new as CampusAlert, ...state.campusAlerts] 
+          }));
+        } else if (payload.eventType === 'DELETE') {
+          set((state) => ({ campusAlerts: state.campusAlerts.filter(a => a.id === payload.old.id) }));
+        }
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'marketplace' }, (payload) => {
-        set((state) => ({ 
-          marketplaceItems: state.marketplaceItems.some(i => i.id === payload.new.id)
-            ? state.marketplaceItems
-            : [payload.new as MarketplaceItem, ...state.marketplaceItems] 
-        }));
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'marketplace' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          set((state) => ({ 
+            marketplaceItems: state.marketplaceItems.some(i => i.id === payload.new.id)
+              ? state.marketplaceItems
+              : [payload.new as MarketplaceItem, ...state.marketplaceItems] 
+          }));
+        } else if (payload.eventType === 'DELETE') {
+          set((state) => ({ marketplaceItems: state.marketplaceItems.filter(i => i.id === payload.old.id) }));
+        }
       });
       
     channel.subscribe((status) => {

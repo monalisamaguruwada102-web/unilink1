@@ -15,7 +15,25 @@ export default function Matches() {
 
   useEffect(() => {
     fetchMatches();
-  }, []);
+    
+    // Real-time matches
+    const channel = supabase.channel('realtime_matches')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'matches',
+        filter: `user1_id=eq.${session?.user.id}`
+      }, () => fetchMatches())
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'matches',
+        filter: `user2_id=eq.${session?.user.id}`
+      }, () => fetchMatches())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [session]);
 
   const fetchMatches = async () => {
     if (!session) return;
