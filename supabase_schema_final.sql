@@ -1,4 +1,23 @@
 -- ============================================
+-- STORAGE BUCKETS (SETUP FIRST)
+-- ============================================
+-- Create buckets if they don't exist
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('post-images', 'post-images', true),
+       ('avatars', 'avatars', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- STORAGE POLICIES (Public Access)
+DROP POLICY IF EXISTS "Public View" ON storage.objects;
+CREATE POLICY "Public View" ON storage.objects FOR SELECT USING (bucket_id IN ('post-images', 'avatars'));
+
+DROP POLICY IF EXISTS "Authenticated Upload" ON storage.objects;
+CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id IN ('post-images', 'avatars') AND 
+  auth.role() = 'authenticated'
+);
+
+-- ============================================
 -- KWEKWE POLY APP - COMPLETE SCHEMA MIGRATION
 -- Run this in the Supabase SQL Editor
 -- ============================================
@@ -256,30 +275,5 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
   END IF;
 END $$;
-
--- ============================================
--- STORAGE BUCKETS (Automated Setup)
--- ============================================
-
--- Create buckets if they don't exist
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('post-images', 'post-images', true)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('avatars', 'avatars', true)
-ON CONFLICT (id) DO NOTHING;
-
--- STORAGE POLICIES (Public Access)
-DROP POLICY IF EXISTS "Public View" ON storage.objects;
-CREATE POLICY "Public View" ON storage.objects FOR SELECT USING (bucket_id IN ('post-images', 'avatars'));
-
-DROP POLICY IF EXISTS "Authenticated Upload" ON storage.objects;
-CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT WITH CHECK (
-  bucket_id IN ('post-images', 'avatars') AND 
-  auth.role() = 'authenticated'
-);
-
--- ============================================
 
 -- MIGRATION COMPLETE
