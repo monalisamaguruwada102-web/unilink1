@@ -18,12 +18,18 @@ export const useAuthStore = create<AuthState>((set) => ({
   loading: true,
   setSession: (session) => set({ session, loading: false }),
   fetchProfile: async (userId) => {
-    const { data } = await supabase
-      .from('users')
-      .select('id, email, name, age, gender, bio, college, course, avatar_url, latitude, longitude, interests, created_at, updated_at')
-      .eq('id', userId)
-      .maybeSingle();
-    if (data) set({ profile: data });
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, email, name, age, gender, bio, college, course, avatar_url, created_at, updated_at')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (error) throw error;
+      if (data) set({ profile: data });
+    } catch (err: any) {
+      console.error('Fetch profile error:', err);
+    }
   },
   signOut: async () => {
     await supabase.auth.signOut();

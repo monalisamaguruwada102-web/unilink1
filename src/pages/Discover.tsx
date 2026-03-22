@@ -46,13 +46,15 @@ export default function Discover() {
       const excludeIds = liked?.map((l: any) => l.liked_id) || [];
       excludeIds.push(session.user.id);
 
-      // Fetch all users except excluded ones (Ensure UUIDs have quotes)
-      const { data, error } = await supabase
+      // Fetch basics defensively to avoid 'missing column' crashes
+      let query = supabase
         .from('users')
-        .select('id, name, age, course, bio, avatar_url, college, latitude, longitude')
+        .select('id, name, age, course, bio, avatar_url, college')
         .not('id', 'in', `(${excludeIds.map(id => `'${id}'`).join(',')})`)
         .order('created_at', { ascending: false })
         .limit(20);
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setProfiles(data || []);

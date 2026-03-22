@@ -79,17 +79,24 @@ export default function Profile() {
       name,
       age: age ? parseInt(age) : null,
       college: 'Kwekwe Poly',
-      course,
-      bio,
-      avatar_url: avatarUrl,
+      course: course || '',
+      bio: bio || '',
+      avatar_url: avatarUrl || '',
       updated_at: new Date().toISOString(),
     };
 
-    await supabase.from('users').upsert(updates);
-    await fetchProfile(session.user.id);
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    try {
+      const { error } = await supabase.from('users').upsert(updates);
+      if (error) throw error;
+      await fetchProfile(session.user.id);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err: any) {
+       console.error('Profile save error:', err);
+       alert(`❌ Profile update failed: ${err.message || 'Check connection'}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const card = isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100';
