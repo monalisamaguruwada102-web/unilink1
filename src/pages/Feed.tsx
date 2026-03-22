@@ -106,7 +106,7 @@ export default function Feed() {
 
   const handleAddComment = async () => {
     if (!session || !commentText.trim() || !activeCommentsPost) return;
-    await addComment(activeCommentsPost.id, session.user.id, commentText);
+    await addComment(activeCommentsPost.id, session.user.id, activeCommentsPost.user_id, commentText);
     setCommentText('');
     loadComments(activeCommentsPost.id);
   };
@@ -256,8 +256,8 @@ export default function Feed() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <button 
-                      onClick={() => likePost(post.id)} 
-                      className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-primary-500/10 text-primary-500 hover:bg-primary-500 hover:text-white transition group"
+                      onClick={() => likePost(post.id, post.user_id, session?.user.id || '')} 
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl transition ${isDarkMode ? 'bg-primary-500/10 text-primary-500 hover:bg-primary-500 hover:text-white' : 'bg-primary-50 text-primary-600 hover:bg-primary-100'} group`}
                     >
                       <Heart size={18} fill={(post.likes > 0) ? "currentColor" : "none"} />
                       <span className="text-xs font-black">{post.likes || 0}</span>

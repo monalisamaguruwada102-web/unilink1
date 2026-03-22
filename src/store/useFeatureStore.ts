@@ -91,6 +91,7 @@ interface FeatureState {
   jobs: Job[];
   campusAlerts: CampusAlert[];
   confessions: Confession[];
+  notifications: any[];
 
   toggleDarkMode: () => void;
   setIncognito: (val: boolean) => void;
@@ -109,9 +110,9 @@ interface FeatureState {
   reactToStory: (storyId: string, userId: string, emoji: string) => Promise<void>;
   
   addPost: (post: any) => void;
-  likePost: (postId: string) => Promise<void>;
+  likePost: (postId: string, postOwnerId: string, likerId: string) => Promise<void>;
   fetchComments: (postId: string) => Promise<any[]>;
-  addComment: (postId: string, userId: string, content: string) => Promise<void>;
+  addComment: (postId: string, userId: string, postOwnerId: string, content: string) => Promise<void>;
   
   fetchFeatures: () => Promise<void>;
   updateUserProfile: (userId: string, updates: any) => Promise<void>;
@@ -137,6 +138,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   jobs: [],
   campusAlerts: [],
   confessions: [],
+  notifications: [],
 
   toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
   setIncognito: (val) => set({ isIncognito: val }),
@@ -195,7 +197,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
 
   addPost: (post) => set(state => ({ posts: [post, ...state.posts] })),
 
-  likePost: async (postId) => {
+  likePost: async (postId, postOwnerId, likerId) => {
     const post = get().posts.find(p => p.id === postId);
     if (!post) return;
     const newLikes = (post.likes || 0) + 1;
@@ -203,6 +205,16 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       posts: state.posts.map(p => p.id === postId ? { ...p, likes: newLikes } : p)
     }));
     await supabase.from('posts').update({ likes: newLikes }).eq('id', postId);
+    
+    // Notify owner
+    if (postOwnerId !== likerId) {
+       await supabase.from('notifications').insert({
+         user_id: postOwnerId,
+         sender_id: likerId,
+         type: 'like',
+         post_id: postId
+       });
+    }
   },
 
   fetchComments: async (postId) => {
@@ -210,8 +222,19 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     return data || [];
   },
 
-  addComment: async (postId, userId, content) => {
+  addComment: async (postId, userId, postOwnerId, content) => {
     await supabase.from('post_comments').insert({ post_id: postId, user_id: userId, content });
+    
+    // Notify owner
+    if (postOwnerId !== userId) {
+       await supabase.from('notifications').insert({
+         user_id: postOwnerId,
+         sender_id: userId,
+         type: 'comment',
+         post_id: postId,
+         content
+       });
+    }
   },
 
   fetchFeatures: async () => {
@@ -337,6 +360,11 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
         } else if (payload.eventType === 'DELETE') {
           set((state) => ({ marketplaceItems: state.marketplaceItems.filter(i => i.id === payload.old.id) }));
         }
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
+        set((state) => ({ 
+           notifications: [payload.new, ...state.notifications]
+        }));
       });
       
     channel.subscribe((status) => {
