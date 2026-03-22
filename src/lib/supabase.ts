@@ -17,5 +17,7 @@ export type UserProfile = {
   avatar_url: string | null;
   latitude: number | null;
   longitude: number | null;
+  interests: string[] | null;
   created_at: string;
+  updated_at: string;
 };

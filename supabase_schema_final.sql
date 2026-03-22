@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS users (
   course TEXT,
   latitude DOUBLE PRECISION,
   longitude DOUBLE PRECISION,
+  gender TEXT,
+  interests TEXT[] DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -234,12 +236,28 @@ BEGIN
 END $$;
 
 -- ============================================
--- STORAGE BUCKETS (Run these as well!)
+-- STORAGE BUCKETS (Automated Setup)
 -- ============================================
--- NOTE: Create these buckets manually in the Supabase Dashboard
--- under Storage > New Bucket:
---   1. "post-images" (public)
---   2. "avatars"     (public)
+
+-- Create buckets if they don't exist
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('post-images', 'post-images', true)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- STORAGE POLICIES (Public Access)
+DROP POLICY IF EXISTS "Public View" ON storage.objects;
+CREATE POLICY "Public View" ON storage.objects FOR SELECT USING (bucket_id IN ('post-images', 'avatars'));
+
+DROP POLICY IF EXISTS "Authenticated Upload" ON storage.objects;
+CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id IN ('post-images', 'avatars') AND 
+  auth.role() = 'authenticated'
+);
+
 -- ============================================
 
 -- MIGRATION COMPLETE

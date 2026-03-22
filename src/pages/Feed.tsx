@@ -56,39 +56,51 @@ export default function Feed() {
     setUploading(true);
     let imageUrl = '';
 
-    if (postImage) {
-      const ext = postImage.name.split('.').pop();
-      const path = `${session.user.id}/${Date.now()}.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from('post-images').upload(path, postImage, { upsert: true });
-      if (!uploadErr) {
+    try {
+      if (postImage) {
+        const ext = postImage.name.split('.').pop();
+        const path = `${session.user.id}/${Date.now()}.${ext}`;
+        const { error: uploadErr } = await supabase.storage.from('post-images').upload(path, postImage, { upsert: true });
+        if (uploadErr) throw uploadErr;
+        
         const { data: urlData } = supabase.storage.from('post-images').getPublicUrl(path);
         imageUrl = urlData.publicUrl;
       }
-    }
 
-    const { error } = await supabase.from('posts').insert({
-      user_id: session.user.id,
-      content: postCaption,
-      image_url: imageUrl || null,
-    });
+      const { error: insertError } = await supabase.from('posts').insert({
+        user_id: session.user.id,
+        content: postCaption,
+        image_url: imageUrl || null,
+      });
+      if (insertError) throw insertError;
 
-    if (!error) {
       setPostCaption('');
       setPostImage(null);
       setPostImagePreview('');
       setShowCreatePost(false);
+      alert('🚀 Post shared with campus!');
+    } catch (err: any) {
+      console.error('Post error:', err);
+      alert(`❌ Failed to post: ${err.message || 'Check connection'}`);
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
   };
 
   const handleAddStory = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!session || !e.target.files?.[0]) return;
     const file = e.target.files[0];
     const path = `${session.user.id}/story_${Date.now()}.${file.name.split('.').pop()}`;
-    const { error } = await supabase.storage.from('post-images').upload(path, file, { upsert: true });
-    if (!error) {
+    
+    try {
+      const { error: uploadErr } = await supabase.storage.from('post-images').upload(path, file, { upsert: true });
+      if (uploadErr) throw uploadErr;
+      
       const { data: urlData } = supabase.storage.from('post-images').getPublicUrl(path);
       await addStory(session.user.id, profile?.name || 'You', urlData.publicUrl);
+      alert('✨ Story posted!');
+    } catch (err: any) {
+       alert(`❌ Story failed: ${err.message}`);
     }
   };
 

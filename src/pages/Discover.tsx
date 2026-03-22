@@ -34,26 +34,33 @@ export default function Discover() {
   useEffect(() => { fetchProfiles(); }, []);
 
   const fetchProfiles = async () => {
+    if (!session?.user?.id) return;
     setLoading(true);
-    if (!session) return;
 
-    // Get IDs already liked to exclude them
-    const { data: liked } = await supabase
-      .from('likes')
-      .select('liked_id')
-      .eq('liker_id', session.user.id);
+    try {
+      const { data: liked } = await supabase
+        .from('likes')
+        .select('liked_id')
+        .eq('liker_id', session.user.id);
 
-    const likedIds = liked?.map((l: any) => l.liked_id) || [];
-    likedIds.push(session.user.id);
+      const excludeIds = liked?.map((l: any) => l.liked_id) || [];
+      excludeIds.push(session.user.id);
 
-    let query = supabase.from('users').select('id, name, age, course, bio, avatar_url, college, latitude, longitude');
-    if (likedIds.length > 0) {
-      query = query.not('id', 'in', `(${likedIds.join(',')})`);
+      // Fetch all users except excluded ones
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name, age, course, bio, avatar_url, college, latitude, longitude')
+        .not('id', 'in', `(${excludeIds.join(',')})`)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+      setProfiles(data || []);
+    } catch (err) {
+      console.error('Discover error:', err);
+    } finally {
+      setLoading(false);
     }
-
-    const { data } = await query.limit(20);
-    if (data) setProfiles(data);
-    setLoading(false);
   };
 
   const handleSwipe = async (profileId: string, direction: 'like' | 'pass') => {
