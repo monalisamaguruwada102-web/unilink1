@@ -54,7 +54,7 @@ export default function Feed() {
         filter: `post_id=eq.${postId}`
       }, async (payload) => {
         const { data: newCommentUser } = await supabase.from('users').select('name, avatar_url').eq('id', payload.new.user_id).single();
-        const fullComment = { ...payload.new, users: newCommentUser };
+        const fullComment: any = { ...payload.new, users: newCommentUser };
         setComments((prev: any[]) => {
           const exists = prev.some(c => c.id === fullComment.id);
           if (exists) return prev;
