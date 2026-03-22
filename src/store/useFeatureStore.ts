@@ -1,129 +1,215 @@
 import { create } from 'zustand';
+import { supabase } from '../lib/supabase';
 
 interface Story {
   id: string;
   user_id: string;
   user_name: string;
   image_url: string;
+  is_viewed: boolean;
+  expires_at: string;
 }
 
-interface CampusEvent {
+interface Event {
   id: string;
   title: string;
-  date: string;
   location: string;
+  date: string;
+  attendees: number;
+  category: string;
+}
+
+interface PollOption {
+  label: string;
+  votes: number;
+}
+
+interface Poll {
+  id: string;
+  question: string;
+  options: PollOption[];
 }
 
 interface MarketplaceItem {
   id: string;
   title: string;
   price: string;
-  category: 'textbook' | 'gadget' | 'other';
+  category: string;
+  image_url: string;
+}
+
+interface Job {
+  id: string;
+  title: string;
+  company: string;
+  type: string;
+  salary: string;
 }
 
 interface CampusAlert {
   id: string;
-  type: 'ZESA' | 'WATER' | 'OTHER';
+  type: string;
   status: string;
   time: string;
 }
 
+interface Confession {
+  id: string;
+  content: string;
+  tags: string[];
+  created_at: string;
+}
+
 interface FeatureState {
-  // Appearance & Privacy
   isDarkMode: boolean;
   isIncognito: boolean;
   isLurkMode: boolean;
+  isStudyMode: boolean;
+  isBoosted: boolean;
+  boostEndTime: number | null;
+  referralPoints: number;
+  badges: string[];
+  mood: { emoji: string; text: string } | null;
+  vibeLabels: string[];
+  
+  stories: Story[];
+  events: Event[];
+  currentPoll: Poll | null;
+  marketplaceItems: MarketplaceItem[];
+  jobs: Job[];
+  campusAlerts: CampusAlert[];
+  confessions: Confession[];
+
   toggleDarkMode: () => void;
   setIncognito: (val: boolean) => void;
   setLurkMode: (val: boolean) => void;
-
-  // Stories & Events
-  stories: Story[];
-  events: CampusEvent[];
-  
-  // Rewards & Badges
-  referralPoints: number;
-  badges: string[];
-
-  // Study Date Mode
-  isStudyMode: boolean;
   setStudyMode: (val: boolean) => void;
-
-  // NEW 20 FEATURES STATES
-  mood: { emoji: string; text: string } | null;
-  vibeLabels: string[];
-  marketplaceItems: MarketplaceItem[];
-  campusAlerts: CampusAlert[];
-  isBoosted: boolean;
-  boostEndTime: number | null;
-  visitorLogs: { user_id: string; timestamp: number }[];
-  currentPoll: { question: string; options: { label: string; votes: number }[] } | null;
-  jobs: { title: string; company: string; type: string }[];
-  
-  setMood: (mood: { emoji: string; text: string } | null) => void;
-  addVibeLabel: (label: string) => void;
-  removeVibeLabel: (label: string) => void;
   triggerBoost: () => void;
-  voteInPoll: (optionIndex: number) => void;
+  setMood: (mood: { emoji: string; text: string }) => void;
+  addVibeLabel: (label: string) => void;
+  
+  // Actions
+  voteInPoll: (optionIndex: number) => Promise<void>;
+  submitConfession: (content: string, tags: string[]) => Promise<void>;
+  joinEvent: (eventId: string) => Promise<void>;
+  addStory: (userId: string, userName: string, imageUrl: string) => Promise<void>;
+  
+  fetchFeatures: () => Promise<void>;
+  updateUserProfile: (userId: string, updates: any) => Promise<void>;
 }
 
-export const useFeatureStore = create<FeatureState>((set) => ({
-  isDarkMode: false,
+export const useFeatureStore = create<FeatureState>((set, get) => ({
+  isDarkMode: true,
   isIncognito: false,
   isLurkMode: false,
   isStudyMode: false,
-  referralPoints: 150,
-  badges: ['Early Adopter', 'Campus Star'],
-  
-  stories: [
-    { id: '1', user_id: '1', user_name: 'Nyasha', image_url: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=400&h=400&fit=crop' },
-    { id: '2', user_id: '2', user_name: 'Tinashe', image_url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=400&fit=crop' },
-    { id: '3', user_id: '3', user_name: 'Farai', image_url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&h=400&fit=crop' },
-  ],
-
-  events: [
-    { id: '1', title: 'Friday Night Mixer', date: 'Tonight, 19:00', location: 'Student Union' },
-    { id: '2', title: 'Group Study: Math 101', date: 'Sat, 10:00', location: 'Library Level 3' },
-  ],
-
-  // INITIAL NEW STATES
-  mood: { emoji: '📚', text: 'Stressed but blessed' },
-  vibeLabels: ['Night Owl', 'Library Resident'],
-  marketplaceItems: [
-    { id: '1', title: 'Intro to Algorithms (New)', price: '$15', category: 'textbook' },
-    { id: '2', title: 'iPhone 12 Case', price: '$5', category: 'gadget' },
-  ],
-  campusAlerts: [
-    { id: '1', type: 'ZESA', status: 'Loadshedding: Hall A & B', time: '14:00 - 18:00' },
-  ],
   isBoosted: false,
   boostEndTime: null,
-  visitorLogs: [],
-  currentPoll: {
-    question: "Best meal at the canteen?",
-    options: [
-      { label: "Sadza & Beef", votes: 45 },
-      { label: "Chips & Chicken", votes: 32 },
-      { label: "Beans & Cabbage", votes: 12 },
-    ]
-  },
-  jobs: [
-    { title: "Lab Assistant", company: "CS Department", type: "Part-time" },
-    { title: "Campus Barista", company: "Brew & Co", type: "Shift-based" },
-  ],
+  referralPoints: 120,
+  badges: ['Early Adopter', 'Verified Student'],
+  mood: { emoji: '📚', text: 'Stressed but blessed' },
+  vibeLabels: ['Night Owl', 'Library Resident', 'Coffee Addict'],
+  
+  stories: [],
+  events: [],
+  currentPoll: null,
+  marketplaceItems: [],
+  jobs: [],
+  campusAlerts: [],
+  confessions: [],
 
   toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
   setIncognito: (val) => set({ isIncognito: val }),
   setLurkMode: (val) => set({ isLurkMode: val }),
   setStudyMode: (val) => set({ isStudyMode: val }),
+  
+  triggerBoost: () => {
+    const endTime = Date.now() + 60 * 60 * 1000;
+    set({ isBoosted: true, boostEndTime: endTime });
+    setTimeout(() => set({ isBoosted: false, boostEndTime: null }), 60 * 60 * 1000);
+  },
+
   setMood: (mood) => set({ mood }),
   addVibeLabel: (label) => set((state) => ({ vibeLabels: [...state.vibeLabels, label] })),
-  removeVibeLabel: (label) => set((state) => ({ vibeLabels: state.vibeLabels.filter(l => l !== label) })),
-  triggerBoost: () => set({ isBoosted: true, boostEndTime: Date.now() + 3600000 }),
-  voteInPoll: (idx) => set((state) => {
-    if (!state.currentPoll) return state;
-    const newOptions = [...state.currentPoll.options];
-    newOptions[idx].votes += 1;
-    return { currentPoll: { ...state.currentPoll, options: newOptions } };
-  }),
+  
+  voteInPoll: async (optionIndex) => {
+    const poll = get().currentPoll;
+    if (!poll) return;
+    const updatedOptions = [...poll.options];
+    updatedOptions[optionIndex].votes += 1;
+    set({ currentPoll: { ...poll, options: updatedOptions } });
+    // Production: update poll_options table
+  },
+
+  submitConfession: async (content, tags) => {
+    const { data } = await supabase.from('confessions').insert({ content, tags }).select().single();
+    if (data) set((state) => ({ confessions: [data, ...state.confessions] }));
+  },
+
+  joinEvent: async (eventId) => {
+    // Increment attendees
+    set((state) => ({
+      events: state.events.map(e => e.id === eventId ? { ...e, attendees: e.attendees + 1 } : e)
+    }));
+  },
+
+  addStory: async (userId, userName, imageUrl) => {
+    const { data } = await supabase.from('stories').insert({ user_id: userId, image_url: imageUrl }).select().single();
+    if (data) {
+      set((state) => ({
+        stories: [{ ...data, user_name: userName, is_viewed: false }, ...state.stories]
+      }));
+    }
+  },
+
+  fetchFeatures: async () => {
+    const [
+      { data: alerts },
+      { data: items },
+      { data: jobList },
+      { data: eventList },
+      { data: confessionList },
+      { data: storyList }
+    ] = await Promise.all([
+      supabase.from('alerts').select('*').order('created_at', { ascending: false }),
+      supabase.from('marketplace').select('*').limit(6),
+      supabase.from('jobs').select('*').limit(10),
+      supabase.from('events').select('*'),
+      supabase.from('confessions').select('*').order('created_at', { ascending: false }).limit(10),
+      supabase.from('stories').select('*, users(name)')
+    ]);
+
+    if (alerts) set({ campusAlerts: alerts });
+    if (items) set({ marketplaceItems: items });
+    if (jobList) set({ jobs: jobList });
+    if (eventList) set({ events: eventList });
+    if (confessionList) set({ confessions: confessionList });
+    
+    if (storyList && storyList.length > 0) {
+       set({ stories: storyList.map(s => ({
+          ...s,
+          user_name: s.users.name,
+          is_viewed: false
+       }))});
+    } else {
+       set({ stories: [
+         { id: '1', user_id: '1', user_name: 'Nyasha', image_url: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&h=200&fit=crop', is_viewed: false, expires_at: '' },
+         { id: '2', user_id: '2', user_name: 'Tinashe', image_url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop', is_viewed: false, expires_at: '' }
+       ]});
+    }
+
+    set({ currentPoll: {
+       id: 'poll-1',
+       question: 'Best meal at the canteen?',
+       options: [
+         { label: 'Sadza & Beef', votes: 120 },
+         { label: 'Chips & Chicken', votes: 85 },
+         { label: 'Beans & Cabbage', votes: 30 }
+       ]
+    }});
+  },
+
+  updateUserProfile: async (userId, updates) => {
+     await supabase.from('users').update(updates).eq('id', userId);
+  }
 }));

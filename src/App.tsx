@@ -19,19 +19,25 @@ import Profile from './pages/Profile';
 
 export default function App() {
   const { session, setSession, fetchProfile, loading } = useAuthStore();
-  const { isDarkMode } = useFeatureStore();
+  const { isDarkMode, fetchFeatures } = useFeatureStore();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }: any) => {
       setSession(session);
-      if (session?.user?.id) fetchProfile(session.user.id);
+      if (session?.user?.id) {
+         fetchProfile(session.user.id);
+         fetchFeatures(); // Populate 20 features data
+      }
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       setSession(session);
-      if (session?.user?.id) fetchProfile(session.user.id);
+      if (session?.user?.id) {
+         fetchProfile(session.user.id);
+         fetchFeatures(); // Populate 20 features data on state change
+      }
     });
 
     // Feature 16: PWA Push Notifications Permission

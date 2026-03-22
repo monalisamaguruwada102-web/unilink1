@@ -11,11 +11,22 @@ export default function Feed() {
   const [newPostContent, setNewPostContent] = useState('');
   const [loading, setLoading] = useState(false);
   const { session, profile } = useAuthStore();
-  const { stories, events, isDarkMode, currentPoll, voteInPoll } = useFeatureStore();
+  const { stories, events, isDarkMode, currentPoll, voteInPoll, confessions, submitConfession, addStory } = useFeatureStore();
 
   useEffect(() => {
     fetchPosts();
   }, []);
+
+  const handleAddSecret = async () => {
+    const text = prompt("Sharing a campus secret? Keep it juicy!");
+    if (text) await submitConfession(text, ["#CampusTea"]);
+  };
+
+  const handleAddStory = async () => {
+    if (!session) return;
+    const url = prompt("Enter story image URL:", "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=512&h=800&fit=crop");
+    if (url) await addStory(session.user.id, profile?.name || 'Someone', url);
+  };
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -66,23 +77,23 @@ export default function Feed() {
       {/* Feature 18: Story Highlights */}
       <div className="mb-12 overflow-x-auto hide-scrollbar whitespace-nowrap px-6">
         <div className="flex gap-5">
-           <div className="flex flex-col items-center gap-2 group">
-              <div className={`w-20 h-20 rounded-[2rem] border-2 border-dashed flex items-center justify-center transition group-hover:bg-primary-50 ${isDarkMode ? 'border-gray-800' : 'border-gray-200 shadow-inner'}`}>
-                 <div className="w-16 h-16 rounded-[1.5rem] bg-primary-100 flex items-center justify-center text-primary-600 transition group-hover:rotate-12">
-                    <Plus size={24} strokeWidth={3} />
+            <div onClick={handleAddStory} className="flex flex-col items-center gap-2 group cursor-pointer">
+               <div className={`w-20 h-20 rounded-[2rem] border-2 border-dashed flex items-center justify-center transition group-hover:bg-primary-50 ${isDarkMode ? 'border-gray-800' : 'border-gray-200 shadow-inner'}`}>
+                  <div className="w-16 h-16 rounded-[1.5rem] bg-primary-100 flex items-center justify-center text-primary-600 transition group-hover:rotate-12">
+                     <Plus size={24} strokeWidth={3} />
+                  </div>
+               </div>
+               <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Add Story</span>
+            </div>
+            {stories.map((story) => (
+              <div key={story.id} className="flex flex-col items-center gap-2 group">
+                 <div className="w-20 h-20 rounded-[2rem] p-1.5 border-2 border-primary-500 group-hover:scale-105 transition duration-300">
+                    <img src={story.image_url} alt={story.user_name} className="w-full h-full rounded-[1.5rem] object-cover" />
                  </div>
+                 <span className="text-[10px] font-black uppercase tracking-widest opacity-60 group-hover:text-primary-500">{story.user_name}</span>
               </div>
-              <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Add Story</span>
-           </div>
-           {stories.map((story) => (
-             <div key={story.id} className="flex flex-col items-center gap-2 group">
-                <div className="w-20 h-20 rounded-[2rem] p-1.5 border-2 border-primary-500 group-hover:scale-105 transition duration-300">
-                   <img src={story.image_url} alt={story.user_name} className="w-full h-full rounded-[1.5rem] object-cover" />
-                </div>
-                <span className="text-[10px] font-black uppercase tracking-widest opacity-60 group-hover:text-primary-500">{story.user_name}</span>
-             </div>
-           ))}
-        </div>
+            ))}
+         </div>
       </div>
 
       {/* Feature 3: Poll of the Day */}
@@ -133,28 +144,34 @@ export default function Feed() {
                <MessageCircleHeart size={14} className="text-pink-500" />
                Campus Confessions
             </h3>
-            <span className="text-[9px] font-black text-pink-500 underline underline-offset-4 decoration-pink-500/30">Add Secret</span>
+            <span 
+              onClick={handleAddSecret} 
+              className="text-[9px] font-black text-pink-500 underline underline-offset-4 cursor-pointer decoration-pink-500/30"
+            >
+              Add Secret
+            </span>
          </div>
          <div className="space-y-5 overflow-x-auto flex gap-4 hide-scrollbar px-1 pb-4">
-            {[
-               { text: "I finally finished my dissertation and I'm crying in the library right now. Best feeling ever! 😭✨", time: "just now", tags: ["#GraduationVibes"] },
-               { text: "To the guy in the white hoodie at the canteen: You have the best smile. Hope we meet again! ☕", time: "12m ago", tags: ["#CanteenCrush"] }
-            ].map((secret, i) => (
+            {confessions.length > 0 ? confessions.map((secret, i) => (
               <motion.div 
-                key={i}
+                key={secret.id || i}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className={`flex-shrink-0 w-80 p-8 rounded-[3rem] border transition-all shadow-xl ${isDarkMode ? 'bg-pink-950/20 border-pink-800/30' : 'bg-pink-50 border-pink-100 shadow-pink-200/20'}`}
               >
-                 <p className="text-[13px] font-bold leading-relaxed mb-6 italic tracking-tight opacity-80">"{secret.text}"</p>
+                 <p className="text-[13px] font-bold leading-relaxed mb-6 italic tracking-tight opacity-80">"{secret.content}"</p>
                  <div className="flex justify-between items-center">
                     <div className="flex gap-2">
-                       {secret.tags.map(t => <span key={t} className="text-[9px] font-black text-pink-500 opacity-60 uppercase tracking-tighter">{t}</span>)}
+                       {secret.tags?.map(t => <span key={t} className="text-[9px] font-black text-pink-500 opacity-60 uppercase tracking-tighter">{t}</span>)}
                     </div>
-                    <span className="text-[9px] font-black opacity-30 uppercase tracking-widest">{secret.time}</span>
+                    <span className="text-[9px] font-black opacity-30 uppercase tracking-widest">
+                       {secret.created_at ? new Date(secret.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'just now'}
+                    </span>
                  </div>
               </motion.div>
-            ))}
+            )) : (
+              <p className="text-[9px] font-black opacity-40 p-10 uppercase tracking-widest text-center w-full">No confessions yet. Be the first!</p>
+            )}
          </div>
       </div>
 
