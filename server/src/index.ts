@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { requireAuth } from './middleware/requireAuth';
+import apiRouter from './routes/api';
 
 // Initialize environment variables
 dotenv.config();
@@ -13,17 +13,12 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Register API Routes
+app.use('/api', apiRouter);
+
 // Public Route
 app.get('/', (req, res) => {
   res.json({ message: 'UniLink Backend API Server running successfully! 🚀' });
-});
-
-// Protected Route Example (Phase 3 Prep)
-app.get('/api/protected', requireAuth, (req, res) => {
-  res.json({ 
-    message: 'You have entered the secure zone',
-    userId: req.userId 
-  });
 });
 
 // Start server
