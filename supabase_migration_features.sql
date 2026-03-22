@@ -114,3 +114,28 @@ CREATE TABLE IF NOT EXISTS visitor_logs (
 ALTER TABLE visitor_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view their own visitors" ON visitor_logs FOR SELECT USING (auth.uid() = profile_id);
 CREATE POLICY "Anyone can log a visit" ON visitor_logs FOR INSERT WITH CHECK (auth.uid() = visitor_id);
+
+-----------------------------------------
+-- INITIAL DUMMY DATA FOR DEMO PURPOSES
+-----------------------------------------
+
+INSERT INTO alerts (type, status, location) VALUES 
+('ZESA', 'Loadshedding: Hall A & B', 'Main Campus'),
+('WATER', 'No water on 3rd Floor', 'New Hostel')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO jobs (title, company, type, salary) VALUES
+('Math Tutor Needed', 'Student Union', 'Part-time', '$15/hr'),
+('Library Assistant', 'Campus Lib', 'Campus Gig', '$10/hr')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO marketplace (title, price, category, image_url) VALUES
+('Calculus Textbook', '$20', 'Books', 'https://via.placeholder.com/150'),
+('Mini Fridge', '$45', 'Appliances', 'https://via.placeholder.com/150')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO events (title, location, date, attendees, category) VALUES
+('Tech Meetup', 'Innovation Hub', 'Friday 5PM', 24, 'Academic'),
+('Freshers Party', 'Student Center', 'Saturday 8PM', 150, 'Social')
+ON CONFLICT DO NOTHING;
+
