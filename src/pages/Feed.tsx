@@ -32,9 +32,11 @@ export default function Feed() {
   }, []);
 
   useEffect(() => {
+    let channel: any;
     if (activeCommentsPost) {
-       loadComments(activeCommentsPost.id);
+       loadComments(activeCommentsPost.id).then(ch => { channel = ch; });
     }
+    return () => { if (channel) supabase.removeChannel(channel); };
   }, [activeCommentsPost]);
 
   const loadComments = async (postId: string) => {
@@ -42,6 +44,26 @@ export default function Feed() {
     const data = await fetchComments(postId);
     setComments(data);
     setCommentsLoading(false);
+    
+    // Set up real-time listener for THIS specific post's comments
+    const channel = supabase.channel(`comments_${postId}`)
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'post_comments',
+        filter: `post_id=eq.${postId}`
+      }, async (payload) => {
+        const { data: newCommentUser } = await supabase.from('users').select('name, avatar_url').eq('id', payload.new.user_id).single();
+        const fullComment = { ...payload.new, users: newCommentUser };
+        setComments((prev: any[]) => {
+          const exists = prev.some(c => c.id === fullComment.id);
+          if (exists) return prev;
+          return [...prev, fullComment];
+        });
+      })
+      .subscribe();
+      
+    return channel;
   };
 
   const handleImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {

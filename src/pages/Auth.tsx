@@ -38,10 +38,11 @@ export default function Auth() {
         
         if (data.user) {
           // Explicitly handle profile insertion
-          const { error: insertError } = await supabase.from('users').insert({
+          const { error: insertError } = await supabase.from('users').upsert({
              id: data.user.id,
              email,
              name,
+             updated_at: new Date().toISOString()
           });
           if (insertError) throw insertError;
         }
