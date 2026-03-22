@@ -5,12 +5,13 @@
 -- 1. CAMPUS ALERTS (Feature 7)
 CREATE TABLE IF NOT EXISTS alerts (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  type TEXT NOT NULL, -- 'ZESA', 'Laundromat', 'Water', etc.
+  type TEXT NOT NULL,
   status TEXT NOT NULL,
   location TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE alerts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can view alerts" ON alerts;
 CREATE POLICY "Anyone can view alerts" ON alerts FOR SELECT USING (true);
 
 -- 2. MARKETPLACE (Feature 4)
@@ -24,6 +25,8 @@ CREATE TABLE IF NOT EXISTS marketplace (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE marketplace ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can view marketplace" ON marketplace;
+DROP POLICY IF EXISTS "Users can add items" ON marketplace;
 CREATE POLICY "Anyone can view marketplace" ON marketplace FOR SELECT USING (true);
 CREATE POLICY "Users can add items" ON marketplace FOR INSERT WITH CHECK (auth.uid() = user_id);
 
@@ -37,6 +40,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can view jobs" ON jobs;
 CREATE POLICY "Anyone can view jobs" ON jobs FOR SELECT USING (true);
 
 -- 4. POLLS (Feature 3)
@@ -54,6 +58,8 @@ CREATE TABLE IF NOT EXISTS poll_options (
 );
 ALTER TABLE polls ENABLE ROW LEVEL SECURITY;
 ALTER TABLE poll_options ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can view polls" ON polls;
+DROP POLICY IF EXISTS "Anyone can view poll options" ON poll_options;
 CREATE POLICY "Anyone can view polls" ON polls FOR SELECT USING (true);
 CREATE POLICY "Anyone can view poll options" ON poll_options FOR SELECT USING (true);
 
@@ -65,6 +71,8 @@ CREATE TABLE IF NOT EXISTS confessions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE confessions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can view confessions" ON confessions;
+DROP POLICY IF EXISTS "Anyone can add confessions" ON confessions;
 CREATE POLICY "Anyone can view confessions" ON confessions FOR SELECT USING (true);
 CREATE POLICY "Anyone can add confessions" ON confessions FOR INSERT WITH CHECK (true);
 
@@ -77,6 +85,8 @@ CREATE TABLE IF NOT EXISTS stories (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE stories ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can view stories" ON stories;
+DROP POLICY IF EXISTS "Users can add stories" ON stories;
 CREATE POLICY "Anyone can view stories" ON stories FOR SELECT USING (true);
 CREATE POLICY "Users can add stories" ON stories FOR INSERT WITH CHECK (auth.uid() = user_id);
 
@@ -91,6 +101,7 @@ CREATE TABLE IF NOT EXISTS events (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can view events" ON events;
 CREATE POLICY "Anyone can view events" ON events FOR SELECT USING (true);
 
 -- 8. EXPAND USERS TABLE (Mood, Vibe, Boost, Privacy)
@@ -112,6 +123,8 @@ CREATE TABLE IF NOT EXISTS visitor_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE visitor_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can view their own visitors" ON visitor_logs;
+DROP POLICY IF EXISTS "Anyone can log a visit" ON visitor_logs;
 CREATE POLICY "Users can view their own visitors" ON visitor_logs FOR SELECT USING (auth.uid() = profile_id);
 CREATE POLICY "Anyone can log a visit" ON visitor_logs FOR INSERT WITH CHECK (auth.uid() = visitor_id);
 
