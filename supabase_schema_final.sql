@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS matches (
 );
 ALTER TABLE matches ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can view own matches" ON matches;
+DROP POLICY IF EXISTS "Users can create matches" ON matches;
 CREATE POLICY "Users can view own matches" ON matches FOR SELECT USING (auth.uid() = user1_id OR auth.uid() = user2_id);
 CREATE POLICY "Users can create matches" ON matches FOR INSERT WITH CHECK (auth.uid() = user1_id);
 
@@ -151,6 +152,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Anyone can view jobs" ON jobs;
+DROP POLICY IF EXISTS "Anyone can post jobs" ON jobs;
 CREATE POLICY "Anyone can view jobs" ON jobs FOR SELECT USING (true);
 CREATE POLICY "Anyone can post jobs" ON jobs FOR INSERT WITH CHECK (true);
 
@@ -171,6 +173,8 @@ CREATE TABLE IF NOT EXISTS post_comments (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE post_comments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can view comments" ON post_comments;
+DROP POLICY IF EXISTS "Users can post comments" ON post_comments;
 CREATE POLICY "Anyone can view comments" ON post_comments FOR SELECT USING (true);
 CREATE POLICY "Users can post comments" ON post_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
 ALTER PUBLICATION supabase_realtime ADD TABLE post_comments;
@@ -184,6 +188,8 @@ CREATE TABLE IF NOT EXISTS story_views (
   UNIQUE(story_id, user_id)
 );
 ALTER TABLE story_views ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can see story views" ON story_views;
+DROP POLICY IF EXISTS "Users can record story view" ON story_views;
 CREATE POLICY "Users can see story views" ON story_views FOR SELECT USING (true);
 CREATE POLICY "Users can record story view" ON story_views FOR INSERT WITH CHECK (auth.uid() = user_id);
 
@@ -196,6 +202,8 @@ CREATE TABLE IF NOT EXISTS story_reactions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE story_reactions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can view story reactions" ON story_reactions;
+DROP POLICY IF EXISTS "Users can react to stories" ON story_reactions;
 CREATE POLICY "Anyone can view story reactions" ON story_reactions FOR SELECT USING (true);
 CREATE POLICY "Users can react to stories" ON story_reactions FOR INSERT WITH CHECK (auth.uid() = user_id);
 ALTER PUBLICATION supabase_realtime ADD TABLE story_reactions;
