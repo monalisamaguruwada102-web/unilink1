@@ -72,7 +72,7 @@ export default function Discover() {
   };
 
   return (
-    <div className={`flex-1 flex flex-col pt-0 pb-28 overflow-hidden transition-colors duration-300 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50'}`}>
+    <div className={`min-h-screen flex flex-col pb-36 transition-colors duration-300 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50'}`}>
       {/* Header */}
       <div className={`sticky top-0 z-20 flex items-center justify-between px-5 py-4 border-b backdrop-blur-xl ${isDarkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/80 border-gray-100'}`}>
         <div>

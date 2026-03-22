@@ -1,12 +1,11 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { useAuthStore } from './store/useAuthStore';
 import { useFeatureStore } from './store/useFeatureStore';
 
 // Components
 import BottomNav from './components/BottomNav';
-import { SOSButton } from './components/features/SafetyAndTheme';
 
 // Pages
 import Auth from './pages/Auth';
@@ -62,28 +61,27 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <div className={`h-screen w-full flex flex-col font-sans transition-colors duration-500 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}>
-        <div className="flex-1 overflow-hidden relative">
-          <Routes>
-            <Route path="/" element={<Feed />} />
-            <Route path="/discover" element={<Discover />} />
-            <Route path="/community" element={<CommunityHub />} />
-            <Route path="/matches" element={<Matches />} />
-            <Route path="/chat/:matchId" element={<Chat />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </div>
-        
-        {/* Feature 5: Safety SOS Button */}
-        <SOSButton />
-
-        {/* Render bottom nav conditionally if not in chat */}
-        <Routes>
-          <Route path="/chat/:matchId" element={null} />
-          <Route path="*" element={<BottomNav />} />
-        </Routes>
-      </div>
+      <AppLayout isDarkMode={isDarkMode} />
     </BrowserRouter>
+  );
+}
+
+function AppLayout({ isDarkMode }: { isDarkMode: boolean }) {
+  const location = useLocation();
+  const isChat = location.pathname.startsWith('/chat/');
+
+  return (
+    <div className={`min-h-screen w-full font-sans transition-colors duration-300 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}>
+      <Routes>
+        <Route path="/" element={<Feed />} />
+        <Route path="/discover" element={<Discover />} />
+        <Route path="/community" element={<CommunityHub />} />
+        <Route path="/matches" element={<Matches />} />
+        <Route path="/chat/:matchId" element={<Chat />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      {!isChat && <BottomNav />}
+    </div>
   );
 }

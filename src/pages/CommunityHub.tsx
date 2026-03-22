@@ -52,7 +52,7 @@ export default function CommunityHub() {
   };
 
   return (
-    <div className={`flex-1 overflow-y-auto px-4 pt-20 pb-40 transition-colors duration-500 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50'}`}>
+      <div className={`min-h-screen overflow-y-auto px-4 pt-20 pb-36 transition-colors duration-500 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50'}`}>
       <header className="mb-10 px-2 mt-4 flex items-start justify-between">
         <div>
           <h1 className="text-4xl font-black tracking-tighter mb-2">Community Hub</h1>

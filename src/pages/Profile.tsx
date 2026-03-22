@@ -92,12 +92,11 @@ export default function Profile() {
     setTimeout(() => setSaved(false), 3000);
   };
 
-  const bg = isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900';
   const card = isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100';
   const input = isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-200 text-gray-900';
 
   return (
-    <div className={`flex-1 overflow-y-auto pb-32 transition-colors duration-300 ${bg}`}>
+    <div className={`min-h-screen pb-36 transition-colors duration-300 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}>
       {/* Header */}
       <div className={`sticky top-0 z-20 flex items-center justify-between px-5 py-4 border-b backdrop-blur-xl ${isDarkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/80 border-gray-100'}`}>
         <h1 className="text-2xl font-black tracking-tighter">My Profile</h1>
