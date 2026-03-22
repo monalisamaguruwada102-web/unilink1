@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
-import { Heart, MessageCircle, Image, Send, X, Plus, Lock, MoreHorizontal, ChevronLeft, ChevronRight, Hash, ShieldAlert } from 'lucide-react';
+import { Heart, MessageCircle, Image, Send, X, Plus, Lock, MoreHorizontal, Hash, ShieldAlert } from 'lucide-react';
 
 export default function Feed() {
   const [confessionText, setConfessionText] = useState('');
