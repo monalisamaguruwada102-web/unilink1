@@ -2,200 +2,262 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
-import ProfileCard from '../components/ProfileCard';
-import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCcw, Sparkles, Zap, GraduationCap, X } from 'lucide-react';
+import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
+import { Heart, X, MapPin, GraduationCap, RefreshCcw, MessageCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function Discover() {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const { session } = useAuthStore();
-  const { isDarkMode, isStudyMode, setStudyMode, isBoosted, triggerBoost, boostEndTime } = useFeatureStore();
-  const [showMatchOverlay, setShowMatchOverlay] = useState(false);
-  const [timeLeft, setTimeLeft] = useState<string>('');
+  const [matchedUser, setMatchedUser] = useState<any>(null);
+  const [matchId, setMatchId] = useState<string>('');
+  const { session, profile: myProfile } = useAuthStore();
+  const { isDarkMode } = useFeatureStore();
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchProfiles();
-  }, [isStudyMode]);
-
-  useEffect(() => {
-    if (isBoosted && boostEndTime) {
-      const interval = setInterval(() => {
-        const remaining = boostEndTime - Date.now();
-        if (remaining <= 0) {
-           clearInterval(interval);
-           setTimeLeft('');
-        } else {
-           const mins = Math.floor(remaining / 60000);
-           const secs = Math.floor((remaining % 60000) / 1000);
-           setTimeLeft(`${mins}:${secs < 10 ? '0' : ''}${secs}`);
-        }
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-  }, [isBoosted, boostEndTime]);
+  useEffect(() => { fetchProfiles(); }, []);
 
   const fetchProfiles = async () => {
     setLoading(true);
-    let query = supabase
-      .from('users')
-      .select('*');
+    if (!session) return;
 
-    if (session) {
-      query = query.neq('id', session.user.id);
-    }
-    
-    if (isStudyMode) {
-      query = query.not('course', 'is', null);
+    // Get IDs already liked to exclude them
+    const { data: liked } = await supabase
+      .from('likes')
+      .select('liked_id')
+      .eq('liker_id', session.user.id);
+
+    const likedIds = liked?.map((l: any) => l.liked_id) || [];
+    likedIds.push(session.user.id);
+
+    let query = supabase.from('users').select('id, name, age, course, bio, avatar_url, college');
+    if (likedIds.length > 0) {
+      query = query.not('id', 'in', `(${likedIds.join(',')})`);
     }
 
-    const { data } = await query;
+    const { data } = await query.limit(20);
     if (data) setProfiles(data);
     setLoading(false);
   };
 
-  const handleLike = async (profileId: string) => {
+  const handleSwipe = async (profileId: string, direction: 'like' | 'pass') => {
     if (!session) return;
-    const { data } = await supabase
-      .from('matches')
-      .insert({
-        user_id_1: session.user.id,
-        user_id_2: profileId,
-        status: 'pending'
-      })
-      .select();
-
-    if (data) {
-      setShowMatchOverlay(true);
-      setTimeout(() => setShowMatchOverlay(false), 3000);
-    }
     setProfiles(prev => prev.filter(p => p.id !== profileId));
+
+    if (direction === 'pass') return;
+
+    // Record the like
+    await supabase.from('likes').upsert({ liker_id: session.user.id, liked_id: profileId });
+
+    // Check if it's mutual
+    const { data: mutual } = await supabase
+      .from('likes')
+      .select('id')
+      .eq('liker_id', profileId)
+      .eq('liked_id', session.user.id)
+      .single();
+
+    if (mutual) {
+      // Create a match record
+      const { data: newMatch } = await supabase
+        .from('matches')
+        .insert({ user1_id: session.user.id, user2_id: profileId })
+        .select()
+        .single();
+
+      const matchedProfile = profiles.find(p => p.id === profileId);
+      setMatchedUser(matchedProfile);
+      if (newMatch) setMatchId(newMatch.id);
+    }
   };
 
   return (
-    <div className={`flex-1 flex flex-col pt-10 pb-32 transition-colors duration-500 overflow-hidden ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50'}`}>
-      <header className="px-6 flex justify-between items-center mb-6">
+    <div className={`flex-1 flex flex-col pt-0 pb-28 overflow-hidden transition-colors duration-300 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50'}`}>
+      {/* Header */}
+      <div className={`sticky top-0 z-20 flex items-center justify-between px-5 py-4 border-b backdrop-blur-xl ${isDarkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/80 border-gray-100'}`}>
         <div>
-          <h1 className="text-4xl font-black tracking-tighter">Discover</h1>
-          <p className="text-[10px] font-black opacity-30 uppercase tracking-[0.3em]">{isStudyMode ? 'Study Mode' : 'Date Mode'}</p>
+          <h1 className="text-2xl font-black tracking-tighter">Discover</h1>
+          <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Kwekwe Poly Students</p>
         </div>
-        
-        <div className="flex gap-3">
-           {/* Feature 15: Profile Boost */}
-           <button 
-             onClick={triggerBoost}
-             disabled={isBoosted}
-             className={`px-5 py-3 rounded-2xl border transition-all flex items-center gap-3 group shadow-xl ${isBoosted ? 'bg-yellow-400 border-yellow-300 text-black' : isDarkMode ? 'bg-gray-900 border-gray-800 text-yellow-500' : 'bg-white border-white text-yellow-600'}`}
-           >
-             <Zap size={20} fill={isBoosted ? "currentColor" : "none"} className={isBoosted ? "animate-pulse" : "group-hover:rotate-12 transition-transform"} />
-             <span className="text-[10px] font-black uppercase tracking-widest">{isBoosted ? timeLeft : 'Boost'}</span>
-           </button>
+        <button onClick={fetchProfiles} className="p-3 rounded-2xl bg-primary-500/10 text-primary-500">
+          <RefreshCcw size={18} />
+        </button>
+      </div>
 
-           <button 
-             onClick={() => setStudyMode(!isStudyMode)}
-             className={`w-14 h-14 rounded-2xl flex items-center justify-center transition shadow-xl ${isStudyMode ? 'bg-primary-500 text-white shadow-primary-500/20' : isDarkMode ? 'bg-gray-900 border border-gray-800 text-gray-400' : 'bg-white text-gray-400 border-white'}`}
-           >
-             <GraduationCap size={28} />
-           </button>
-        </div>
-      </header>
-
-      <div className="flex-1 relative px-6 flex items-center justify-center">
+      {/* Card Stack */}
+      <div className="flex-1 flex items-center justify-center px-4">
         {loading ? (
-          <div className="flex flex-col items-center">
-            <RefreshCcw className="animate-spin text-primary-500 mb-6" size={48} />
-            <p className="font-black text-[10px] tracking-[0.3em] uppercase opacity-40 animate-pulse">Scanning Campus...</p>
+          <div className="text-center opacity-40">
+            <RefreshCcw className="animate-spin mx-auto mb-4 text-primary-500" size={40} />
+            <p className="text-xs font-black uppercase tracking-widest">Scanning Campus...</p>
           </div>
-        ) : profiles.length > 0 ? (
-          <div className="w-full max-w-[340px] h-[500px] relative">
-            <AnimatePresence mode="popLayout">
-              {profiles.slice(0, 3).map((profile, i) => (
-                <motion.div
-                  key={profile.id}
-                  initial={{ scale: 0.9, opacity: 0, y: 50 }}
-                  animate={{ 
-                    scale: 1 - i * 0.05, 
-                    opacity: 1 - i * 0.2, 
-                    y: -i * 15,
-                    rotate: i % 2 === 0 ? i * 2 : -i * 2
-                  }}
-                  exit={{ x: 500, opacity: 0, rotate: 45, transition: { duration: 0.5 } }}
-                  className="absolute inset-0"
-                  style={{ zIndex: profiles.length - i }}
-                >
-                  <ProfileCard
-                    profile={profile}
-                    onLike={() => handleLike(profile.id)}
-                    onPass={() => setProfiles(prev => prev.filter(p => p.id !== profile.id))}
-                    onCrush={() => handleLike(profile.id)}
-                  />
-                </motion.div>
-              )).reverse()}
-            </AnimatePresence>
+        ) : profiles.length === 0 ? (
+          <div className="text-center p-10">
+            <div className="text-6xl mb-6">😅</div>
+            <h2 className="text-2xl font-black mb-2">You've seen everyone!</h2>
+            <p className="text-sm opacity-40 mb-8">Check back later for new Poly students.</p>
+            <button
+              onClick={fetchProfiles}
+              className="px-8 py-4 bg-primary-500 text-white font-black rounded-2xl shadow-lg shadow-primary-500/30 text-sm uppercase tracking-widest"
+            >
+              Refresh
+            </button>
           </div>
         ) : (
-          <div className="text-center flex flex-col items-center p-10 bg-white dark:bg-gray-900 rounded-[4rem] shadow-2xl border border-white dark:border-gray-800">
-            <div className="w-24 h-24 rounded-[3rem] bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-500 mb-8 shadow-inner">
-               <Sparkles size={48} />
-            </div>
-            <h2 className="text-3xl font-black mb-3 tracking-tighter">That's everyone!</h2>
-            <p className="text-xs font-bold opacity-40 mb-10 uppercase tracking-widest leading-relaxed px-4">You've reached the end of the campus for today. Check back later!</p>
-            <button
-               onClick={fetchProfiles}
-               className="w-full py-5 bg-primary-500 text-white font-black rounded-3xl shadow-2xl shadow-primary-500/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-4 text-xs uppercase tracking-[0.3em]"
-            >
-               <RefreshCcw size={22} className="animate-spin-slow" />
-               Refresh Feed
-            </button>
+          <div className="w-full max-w-sm h-[520px] relative">
+            <AnimatePresence>
+              {profiles.slice(0, 3).reverse().map((p, i) => (
+                <SwipeCard
+                  key={p.id}
+                  profile={p}
+                  isTop={i === profiles.slice(0, 3).length - 1}
+                  stackIndex={profiles.slice(0, 3).length - 1 - i}
+                  onLike={() => handleSwipe(p.id, 'like')}
+                  onPass={() => handleSwipe(p.id, 'pass')}
+                  isDarkMode={isDarkMode}
+                />
+              ))}
+            </AnimatePresence>
           </div>
         )}
       </div>
 
+      {/* Match Overlay */}
       <AnimatePresence>
-        {showMatchOverlay && (
+        {matchedUser && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/90 backdrop-blur-2xl p-10"
+            className="fixed inset-0 z-[100] bg-gray-950/95 backdrop-blur-2xl flex flex-col items-center justify-center p-8 text-white"
           >
-            <div className="text-center text-white max-w-sm">
-              <div className="flex justify-center -space-x-12 mb-12">
-                 <div className="w-36 h-36 rounded-[3rem] border-4 border-white overflow-hidden shadow-2xl rotate-[-8deg] relative z-10">
-                    <img src={session?.user?.user_metadata?.avatar_url || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=400&fit=crop"} className="w-full h-full object-cover" />
-                 </div>
-                 <div className="w-36 h-36 rounded-[3rem] border-4 border-primary-500 overflow-hidden shadow-2xl rotate-[8deg] relative z-20">
-                    <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop" className="w-full h-full object-cover" />
-                 </div>
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', damping: 15 }}
+              className="text-center"
+            >
+              <div className="flex justify-center -space-x-8 mb-10">
+                <div className="w-32 h-32 rounded-3xl overflow-hidden border-4 border-white z-10 -rotate-6 shadow-2xl">
+                  {myProfile?.avatar_url
+                    ? <img src={myProfile.avatar_url} className="w-full h-full object-cover" alt="You" />
+                    : <div className="w-full h-full bg-primary-500 flex items-center justify-center font-black text-3xl text-white">{myProfile?.name?.[0]}</div>
+                  }
+                </div>
+                <div className="w-32 h-32 rounded-3xl overflow-hidden border-4 border-primary-500 z-20 rotate-6 shadow-2xl">
+                  {matchedUser.avatar_url
+                    ? <img src={matchedUser.avatar_url} className="w-full h-full object-cover" alt={matchedUser.name} />
+                    : <div className="w-full h-full bg-indigo-500 flex items-center justify-center font-black text-3xl text-white">{matchedUser.name?.[0]}</div>
+                  }
+                </div>
               </div>
-              <h2 className="text-5xl font-black mb-4 tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-indigo-400">Boom!</h2>
-              <p className="text-xl font-black opacity-80 mb-12 tracking-tight">You both swiped right!</p>
-              
-              <div className="space-y-4">
-                 <button 
-                  onClick={() => setShowMatchOverlay(false)}
-                  className="w-full py-5 bg-primary-500 text-white font-black rounded-3xl shadow-2xl shadow-primary-500/40 text-xs uppercase tracking-[.3em] hover:scale-105 transition"
+
+              <div className="text-6xl mb-3">🎉</div>
+              <h2 className="text-4xl font-black mb-2 bg-gradient-to-r from-primary-400 to-indigo-400 bg-clip-text text-transparent">It's a Match!</h2>
+              <p className="text-lg font-bold opacity-60 mb-10">You and <strong>{matchedUser.name}</strong> both swiped right!</p>
+
+              <div className="space-y-3 w-full">
+                <button
+                  onClick={() => { setMatchedUser(null); navigate(`/chat/${matchId}`); }}
+                  className="w-full py-5 bg-primary-500 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl shadow-primary-500/30 flex items-center justify-center gap-3"
                 >
-                  Message Them
+                  <MessageCircle size={20} /> Send a Message
                 </button>
-                <button 
-                  onClick={() => setShowMatchOverlay(false)}
-                  className="w-full py-5 bg-white/10 hover:bg-white/20 text-white font-black rounded-3xl text-xs uppercase tracking-[.3em] border border-white/10"
+                <button
+                  onClick={() => setMatchedUser(null)}
+                  className="w-full py-5 bg-white/10 rounded-2xl font-black uppercase tracking-widest text-sm border border-white/10"
                 >
                   Keep Swiping
                 </button>
               </div>
-            </div>
-            
-            <button 
-              onClick={() => setShowMatchOverlay(false)}
-              className="absolute top-10 right-10 w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-white"
-            >
-              <X size={24} />
-            </button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function SwipeCard({ profile, isTop, stackIndex, onLike, onPass }: any) {
+  const x = useMotionValue(0);
+  const rotate = useTransform(x, [-200, 200], [-25, 25]);
+  const likeOpacity = useTransform(x, [20, 80], [0, 1]);
+  const passOpacity = useTransform(x, [-80, -20], [1, 0]);
+
+  const handleDragEnd = (_: any, info: any) => {
+    if (info.offset.x > 100) onLike();
+    else if (info.offset.x < -100) onPass();
+  };
+
+  return (
+    <motion.div
+      style={{
+        x: isTop ? x : 0,
+        rotate: isTop ? rotate : 0,
+        scale: 1 - stackIndex * 0.04,
+        zIndex: 10 - stackIndex,
+        y: stackIndex * 10,
+      }}
+      drag={isTop ? 'x' : false}
+      dragConstraints={{ left: 0, right: 0 }}
+      onDragEnd={handleDragEnd}
+      exit={{ x: 500, opacity: 0, rotate: 30 }}
+      animate={{ x: 0 }}
+      className="absolute inset-0 rounded-[2.5rem] overflow-hidden shadow-2xl cursor-grab active:cursor-grabbing"
+    >
+      {/* Card Image */}
+      {profile.avatar_url ? (
+        <img src={profile.avatar_url} alt={profile.name} className="absolute inset-0 w-full h-full object-cover" />
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-600 to-indigo-600 flex items-center justify-center">
+          <span className="text-8xl font-black text-white/30">{profile.name?.[0]}</span>
+        </div>
+      )}
+
+      {/* Gradient Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+
+      {/* Swipe Indicators */}
+      <motion.div style={{ opacity: likeOpacity }} className="absolute top-10 left-8 px-6 py-3 border-4 border-green-400 rounded-2xl rotate-[-20deg]">
+        <span className="text-green-400 font-black text-2xl uppercase tracking-widest">Like</span>
+      </motion.div>
+      <motion.div style={{ opacity: passOpacity }} className="absolute top-10 right-8 px-6 py-3 border-4 border-red-400 rounded-2xl rotate-[20deg]">
+        <span className="text-red-400 font-black text-2xl uppercase tracking-widest">Nope</span>
+      </motion.div>
+
+      {/* Profile Info */}
+      <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+        <h2 className="text-3xl font-black tracking-tighter mb-1">{profile.name}{profile.age && `, ${profile.age}`}</h2>
+        {profile.course && (
+          <p className="flex items-center gap-2 text-sm font-bold opacity-80 mb-1">
+            <GraduationCap size={16} /> {profile.course}
+          </p>
+        )}
+        {profile.college && (
+          <p className="flex items-center gap-2 text-sm font-bold opacity-60">
+            <MapPin size={16} /> {profile.college}
+          </p>
+        )}
+        {profile.bio && <p className="text-sm opacity-70 mt-3 leading-relaxed line-clamp-2">{profile.bio}</p>}
+
+        {/* Action Buttons */}
+        {isTop && (
+          <div className="flex justify-center gap-6 mt-5">
+            <button
+              onClick={onPass}
+              className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/30 hover:bg-red-500 transition-colors"
+            >
+              <X size={28} />
+            </button>
+            <button
+              onClick={onLike}
+              className="w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center text-white shadow-xl shadow-primary-500/50 hover:scale-110 transition"
+            >
+              <Heart size={28} fill="white" />
+            </button>
+          </div>
+        )}
+      </div>
+    </motion.div>
   );
 }
