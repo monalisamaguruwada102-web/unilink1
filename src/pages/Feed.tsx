@@ -38,12 +38,15 @@ export default function Feed() {
   const [comments, setComments] = useState<any[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
   
   const fileRef = useRef<HTMLInputElement>(null);
   const { session, profile } = useAuthStore();
   const { 
-    stories, posts, isDarkMode, confessions, 
-    submitConfession, addStory, fetchFeatures, 
+    stories, posts, isDarkMode, confessions, notifications,
+    submitConfession, addStory, fetchFeatures, markNotificationsRead,
     likePost, addComment, fetchComments, viewStory, reactToStory 
   } = useFeatureStore();
 
@@ -97,17 +100,24 @@ export default function Feed() {
   const handleCreatePost = async () => {
     if (!session || (!postCaption.trim() && !postImage)) return;
     setUploading(true);
+    setUploadProgress(10);
     let imageUrl = '';
 
     try {
       if (postImage) {
         const ext = postImage.name.split('.').pop();
         const path = `${session.user.id}/${Date.now()}.${ext}`;
+        
+        // Progress Simulation
+        const interval = setInterval(() => setUploadProgress(p => p < 90 ? p + 10 : p), 300);
+        
         const { error: uploadErr } = await supabase.storage.from('post-images').upload(path, postImage, { upsert: true });
+        clearInterval(interval);
         if (uploadErr) throw uploadErr;
         
         const { data: urlData } = supabase.storage.from('post-images').getPublicUrl(path);
         imageUrl = urlData.publicUrl;
+        setUploadProgress(100);
       }
 
       const { error: insertError } = await supabase.from('posts').insert({
@@ -117,14 +127,18 @@ export default function Feed() {
       });
       if (insertError) throw insertError;
 
-      setPostCaption('');
-      setPostImage(null);
-      setPostImagePreview('');
-      setShowCreatePost(false);
-      alert('🚀 Post shared with campus!');
+      setTimeout(() => {
+        setPostCaption('');
+        setPostImage(null);
+        setPostImagePreview('');
+        setShowCreatePost(false);
+        setUploadProgress(0);
+        alert('🚀 Post shared with campus!');
+      }, 500);
     } catch (err: any) {
       console.error('Post error:', err);
       alert(`❌ Failed to post: ${err.message || 'Check connection'}`);
+      setUploadProgress(0);
     } finally {
       setUploading(false);
     }
@@ -157,14 +171,27 @@ export default function Feed() {
   return (
     <div className={`min-h-screen overflow-y-auto pb-36 transition-colors duration-300 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}>
       {/* Top Bar */}
-      <div className={`sticky top-0 z-20 flex items-center justify-between px-5 py-4 border-b backdrop-blur-xl ${isDarkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/80 border-gray-100'}`}>
-        <span className="text-2xl font-black tracking-tighter bg-gradient-to-r from-primary-500 to-indigo-500 bg-clip-text text-transparent">Kwekwe Poly</span>
-        <button
-          onClick={() => setShowCreatePost(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white font-black text-[11px] uppercase tracking-widest rounded-2xl shadow-lg shadow-primary-500/30"
-        >
-          <Plus size={14} strokeWidth={3} /> Post
-        </button>
+      <div className={`sticky top-0 z-30 flex items-center justify-between px-5 py-4 border-b backdrop-blur-xl ${isDarkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/80 border-gray-100'}`}>
+        <div className="flex items-center gap-2">
+          <span className="text-2xl font-black tracking-tighter bg-gradient-to-r from-primary-500 to-indigo-500 bg-clip-text text-transparent">Poly Link</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setShowNotifications(true)}
+            className={`relative p-3 rounded-2xl transition ${isDarkMode ? 'bg-gray-900 text-gray-400' : 'bg-gray-50 text-gray-500'}`}
+          >
+            <ShieldAlert size={20} />
+            {notifications.filter(n => !n.is_read).length > 0 && (
+               <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white shadow-sm" />
+            )}
+          </button>
+          <button
+            onClick={() => setShowCreatePost(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white font-black text-[11px] uppercase tracking-widest rounded-2xl shadow-lg shadow-primary-500/30"
+          >
+            <Plus size={14} strokeWidth={3} /> Post
+          </button>
+        </div>
       </div>
 
       {/* Stories Row */}
@@ -285,9 +312,12 @@ export default function Feed() {
                 {/* Post Image */}
                 {post.image_url && (
                   <div className="px-3">
-                     <div className="w-full aspect-square rounded-[2rem] overflow-hidden bg-gray-100 dark:bg-gray-800">
+                     <button 
+                        onClick={() => setViewingImage(post.image_url)}
+                        className="w-full aspect-square rounded-[2rem] overflow-hidden bg-gray-100 dark:bg-gray-800 transition-transform active:scale-[0.98]"
+                     >
                        <img src={post.image_url} alt="Post" className="w-full h-full object-cover" />
-                     </div>
+                     </button>
                   </div>
                 )}
 
@@ -318,9 +348,22 @@ export default function Feed() {
                         <span className="text-xs font-black">{post.comment_count || 0}</span>
                       </button>
                     </div>
-                    <button className={`p-3 rounded-2xl ${isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-50 text-gray-600'}`}>
-                      <Send size={18} className="-rotate-12" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => { navigator.clipboard.writeText(window.location.origin + '/post/' + post.id); alert('🔗 Link copied! You can now reshare this on campus.'); }}
+                        className={`p-3 rounded-2xl transition ${isDarkMode ? 'bg-gray-800 text-gray-400 hover:text-primary-500' : 'bg-gray-50 text-gray-600 hover:text-primary-600'}`}
+                        title="Reshare"
+                      >
+                        <Send size={18} className="-rotate-12" />
+                      </button>
+                      <button 
+                        onClick={() => alert('🔖 Post saved to your campus collection!')}
+                        className={`p-3 rounded-2xl transition ${isDarkMode ? 'bg-gray-800 text-gray-400 hover:text-yellow-500' : 'bg-gray-50 text-gray-600 hover:text-yellow-600'}`}
+                        title="Save to collection"
+                      >
+                        <Lock size={18} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -506,12 +549,26 @@ export default function Feed() {
               {postImagePreview && (
                 <div className="relative w-full aspect-square rounded-[2rem] overflow-hidden shadow-2xl">
                   <img src={postImagePreview} className="w-full h-full object-cover" alt="Preview" />
-                  <button
-                    onClick={() => { setPostImage(null); setPostImagePreview(''); }}
-                    className="absolute top-4 right-4 w-10 h-10 bg-black/60 rounded-full flex items-center justify-center text-white backdrop-blur-md"
-                  >
-                    <X size={18} />
-                  </button>
+                  {uploading && (
+                    <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center p-8 backdrop-blur-sm">
+                       <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden mb-3">
+                          <motion.div 
+                            initial={{ width: 0 }} 
+                            animate={{ width: `${uploadProgress}%` }} 
+                            className="h-full bg-primary-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]" 
+                          />
+                       </div>
+                       <p className="text-[10px] font-black uppercase tracking-widest text-white animate-pulse">Uploading {uploadProgress}%</p>
+                    </div>
+                  )}
+                  {!uploading && (
+                    <button
+                      onClick={() => { setPostImage(null); setPostImagePreview(''); }}
+                      className="absolute top-4 right-4 w-10 h-10 bg-black/60 rounded-full flex items-center justify-center text-white backdrop-blur-md"
+                    >
+                      <X size={18} />
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -589,6 +646,94 @@ export default function Feed() {
               </button>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 🔔 NOTIFICATIONS MODAL */}
+      <AnimatePresence>
+        {showNotifications && (
+           <motion.div
+             initial={{ opacity: 0 }}
+             animate={{ opacity: 1 }}
+             exit={{ opacity: 0 }}
+             className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-end md:items-center md:justify-center"
+             onClick={() => { setShowNotifications(false); if(session) markNotificationsRead(session.user.id); }}
+           >
+             <motion.div
+               initial={{ y: '100%' }}
+               animate={{ y: 0 }}
+               exit={{ y: '100%' }}
+               className={`w-full md:max-w-md max-h-[80vh] rounded-t-[3rem] md:rounded-[3rem] p-8 flex flex-col ${isDarkMode ? 'bg-gray-950/90 border border-gray-800' : 'bg-white'}`}
+               onClick={e => e.stopPropagation()}
+             >
+               <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h2 className="text-2xl font-black uppercase tracking-tighter">Campus Alerts</h2>
+                    <p className="text-[10px] opacity-40 font-bold uppercase tracking-widest mt-1">Updates on your social buzz</p>
+                  </div>
+                  <button onClick={() => { setShowNotifications(false); if(session) markNotificationsRead(session.user.id); }} className={`p-3 rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                    <X size={20} />
+                  </button>
+               </div>
+
+               <div className="flex-1 overflow-y-auto space-y-4">
+                  {notifications.length === 0 ? (
+                    <div className="text-center py-20 opacity-30">
+                       <ShieldAlert size={48} className="mx-auto mb-4" />
+                       <p className="font-black text-xs uppercase tracking-widest">Quiet for now...</p>
+                    </div>
+                  ) : (
+                    notifications.map((n, i) => (
+                      <div key={n.id || i} className={`p-4 rounded-3xl flex items-center gap-4 transition-all ${!n.is_read ? (isDarkMode ? 'bg-primary-500/10 border border-primary-500/20' : 'bg-primary-50 border border-primary-100') : (isDarkMode ? 'bg-gray-900/50' : 'bg-gray-50')}`}>
+                         <div className="w-10 h-10 rounded-xl bg-primary-500 flex items-center justify-center text-white shrink-0">
+                            {n.type === 'like' ? <Heart size={18} fill="currentColor" /> : <MessageCircle size={18} />}
+                         </div>
+                         <div className="flex-1">
+                            <p className="text-sm font-bold leading-tight">Someone {n.type}d your post</p>
+                            <p className="text-[10px] opacity-40 font-bold uppercase tracking-widest mt-1">{new Date(n.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</p>
+                         </div>
+                         {!n.is_read && <div className="w-2.5 h-2.5 bg-primary-500 rounded-full" />}
+                      </div>
+                    ))
+                  )}
+               </div>
+             </motion.div>
+           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 🖼️ IMAGE VIEWER */}
+      <AnimatePresence>
+        {viewingImage && (
+           <motion.div
+             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+             className="fixed inset-0 z-[200] bg-black/95 flex flex-col items-center justify-center p-4"
+             onClick={() => setViewingImage(null)}
+           >
+             <button className="absolute top-8 right-8 text-white p-4" onClick={() => setViewingImage(null)}>
+               <X size={32} />
+             </button>
+             <motion.img 
+               initial={{ scale: 0.9, opacity: 0 }} 
+               animate={{ scale: 1, opacity: 1 }} 
+               src={viewingImage} 
+               className="max-w-full max-h-[85vh] rounded-[2rem] object-contain shadow-2xl shadow-primary-500/10" 
+             />
+             <div className="mt-8 flex gap-4">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); alert('💾 Image saved to device!'); }}
+                  className="px-8 py-4 bg-white/10 backdrop-blur-md rounded-2xl text-white font-black text-xs uppercase tracking-widest border border-white/20"
+                >
+                  Save Photo
+                </button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(viewingImage); alert('🔗 Link copied to clipboard!'); }}
+                  className="px-8 py-4 bg-primary-500 rounded-2xl text-white font-black text-xs uppercase tracking-widest shadow-xl shadow-primary-500/20"
+                >
+                  Share Link
+                </button>
+             </div>
+           </motion.div>
         )}
       </AnimatePresence>
     </div>

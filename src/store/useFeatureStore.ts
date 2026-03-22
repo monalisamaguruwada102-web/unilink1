@@ -116,6 +116,7 @@ interface FeatureState {
   
   fetchFeatures: () => Promise<void>;
   updateUserProfile: (userId: string, updates: any) => Promise<void>;
+  markNotificationsRead: (userId: string) => Promise<void>;
 }
 
 export const useFeatureStore = create<FeatureState>((set, get) => ({
@@ -193,6 +194,17 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
 
   reactToStory: async (storyId, userId, emoji) => {
     await supabase.from('story_reactions').insert({ story_id: storyId, user_id: userId, emoji });
+  },
+
+  markNotificationsRead: async (userId: string) => {
+    try {
+      await supabase.from('notifications').update({ is_read: true }).eq('user_id', userId);
+      set(state => ({
+        notifications: state.notifications.map(n => ({ ...n, is_read: true }))
+      }));
+    } catch (err) {
+      console.error('Failed to mark notifications read:', err);
+    }
   },
 
   addPost: (post) => set(state => ({ posts: [post, ...state.posts] })),
