@@ -238,7 +238,7 @@ export default function Discover() {
                   <div className="flex items-center justify-between mb-2">
                      <div className="flex items-center gap-3">
                        <h2 className="text-3xl font-black tracking-tighter">{currentProfile.name}, {currentProfile.age || '??'}</h2>
-                       <div className="w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white animate-pulse" />
+                       <div className="w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />
                      </div>
                      <button 
                        onClick={(e) => { e.stopPropagation(); setSelectedProfile(currentProfile); }}

@@ -77,8 +77,10 @@ export default function Profile() {
       await fetchProfile(session.user.id);
       console.log('Avatar updated successfully:', publicUrl);
     } catch (err: any) {
-      console.error('Avatar upload error:', err);
-      alert(`❌ Update failed: ${err.message || 'Unknown error'}. Check your internet and storage permissions.`);
+      console.error('Avatar upload error details:', err);
+      // Give the user the specific error so they can tell us exactly what it is
+      const errorMsg = err.message || err.error_description || 'Unknown storage error';
+      alert(`❌ Update failed: ${errorMsg}\n\n1. Check your internet\n2. Make sure you've run avatar_upload_fix.sql in Supabase\n3. Refresh and try again.`);
     } finally {
       setUploading(false);
     }
