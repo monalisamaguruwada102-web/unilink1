@@ -24,8 +24,6 @@ export default function Profile() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [locationLive, setLocationLive] = useState(false);
-  const [locationWatchId, setLocationWatchId] = useState<number | null>(null);
   const [canInstall, setCanInstall] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -87,32 +85,21 @@ export default function Profile() {
     }
   };
 
-  const toggleLocation = () => {
-    if (locationLive) {
-      // Stop tracking
-      if (locationWatchId !== null) navigator.geolocation.clearWatch(locationWatchId);
-      setLocationWatchId(null);
-      setLocationLive(false);
-      // Clear from DB
-      if (session) {
-        supabase.from('users').update({ latitude: null, longitude: null, location_updated_at: null }).eq('id', session.user.id);
-      }
+  const toggleLocation = async () => {
+    if (!session || !profile) return;
+    const newState = !profile.is_location_enabled;
+    
+    // Update DB
+    await supabase.from('users').update({ is_location_enabled: newState }).eq('id', session.user.id);
+    await fetchProfile(session.user.id);
+    
+    if (newState) {
+       // Start tracking immediately in this component if needed (though App.tsx handles it)
+       alert('📡 Live location enabled. Matches can now see you on campus!');
     } else {
-      if (!navigator.geolocation) { alert('Geolocation not supported'); return; }
-      const watchId = navigator.geolocation.watchPosition(
-        async (pos) => {
-          if (!session) return;
-          await supabase.from('users').update({
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-            location_updated_at: new Date().toISOString(),
-          }).eq('id', session.user.id);
-        },
-        () => { setLocationLive(false); alert('Location access denied. Please enable in browser settings.'); },
-        { enableHighAccuracy: true, maximumAge: 30000 }
-      );
-      setLocationWatchId(watchId);
-      setLocationLive(true);
+       // Stop and clear from DB
+       await supabase.from('users').update({ latitude: null, longitude: null, location_updated_at: null }).eq('id', session.user.id);
+       alert('📴 Location sharing stopped.');
     }
   };
 
@@ -266,7 +253,7 @@ export default function Profile() {
           <p className="text-[10px] opacity-30 text-right">{bio.length}/200</p>
         </div>
 
-        {/* Location */}
+        {/* Location Row */}
         <div className={`p-5 rounded-3xl border ${card}`}>
           <div className="flex items-center justify-between">
             <div>
@@ -274,25 +261,25 @@ export default function Profile() {
                 <MapPin size={12} /> Live Location
               </p>
               <p className="text-sm font-bold">
-                {locationLive
-                  ? '📡 Broadcasting live location to matches'
-                  : 'Share live location so matches can find you'}
+                {profile?.is_location_enabled
+                  ? '📡 Broadcasting live location'
+                  : 'Share live location on campus'}
               </p>
-              {locationLive && (
-                <p className="text-[9px] opacity-40 font-bold mt-1 uppercase tracking-widest">Updates every 30s automatically</p>
+              {profile?.is_location_enabled && (
+                <p className="text-[9px] opacity-40 font-bold mt-1 uppercase tracking-widest">Always active in background</p>
               )}
             </div>
             <button
               type="button"
               onClick={toggleLocation}
               className={`w-16 h-9 rounded-full transition-all duration-300 relative flex-shrink-0 ml-4 ${
-                locationLive ? 'bg-green-500 shadow-lg shadow-green-500/40' : isDarkMode ? 'bg-gray-700' : 'bg-gray-300'
+                profile?.is_location_enabled ? 'bg-green-500 shadow-lg shadow-green-500/40' : isDarkMode ? 'bg-gray-700' : 'bg-gray-300'
               }`}
             >
               <div className={`absolute top-1 w-7 h-7 bg-white rounded-full shadow-md transition-all duration-300 flex items-center justify-center ${
-                locationLive ? 'left-8' : 'left-1'
+                profile?.is_location_enabled ? 'left-8' : 'left-1'
               }`}>
-                <Radio size={12} className={locationLive ? 'text-green-500' : 'text-gray-400'} />
+                <Radio size={12} className={profile?.is_location_enabled ? 'text-green-500' : 'text-gray-400'} />
               </div>
             </button>
           </div>

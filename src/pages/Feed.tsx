@@ -574,7 +574,7 @@ export default function Feed() {
                    {['❤️', '🔥', '😂', '🙌'].map(emoji => (
                       <button 
                         key={emoji} 
-                        onClick={() => { reactToStory(activeStory.id, session?.user.id || '', emoji); setActiveStory(null); }}
+                        onClick={() => { reactToStory(activeStory.id, activeStory.user_id, session?.user.id || '', emoji); setActiveStory(null); }}
                         className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-xl hover:scale-125 transition"
                       >
                          {emoji}

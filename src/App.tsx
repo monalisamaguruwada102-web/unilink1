@@ -18,7 +18,7 @@ import Profile from './pages/Profile';
 import GroupChat from './pages/GroupChat';
 
 export default function App() {
-  const { session, setSession, fetchProfile, loading } = useAuthStore();
+  const { session, profile, setSession, fetchProfile, loading } = useAuthStore();
   const { isDarkMode, fetchFeatures } = useFeatureStore();
 
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function App() {
 
   // 📍 Persistent Location Tracking
   useEffect(() => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id || !profile?.is_location_enabled) return;
 
     let watchId: number | null = null;
     let lastUpdate = 0;
@@ -105,7 +105,7 @@ export default function App() {
     return () => {
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, profile?.is_location_enabled]);
 
   if (loading) {
     return (

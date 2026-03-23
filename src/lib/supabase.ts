@@ -18,6 +18,8 @@ export type UserProfile = {
   last_seen?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  location_updated_at?: string | null;
+  is_location_enabled?: boolean;
   interests?: string[] | null;
   created_at: string;
   updated_at: string;

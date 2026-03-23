@@ -142,13 +142,39 @@ export default function Discover() {
              </button>
            )}
         </div>
+        {/* Recent Activity Header */}
+      {!searchQuery && profiles.length > 0 && (
+        <div className="px-5 mb-6 overflow-hidden">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 mb-4 flex items-center gap-2">
+            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> Recently Active
+          </p>
+          <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-2">
+            {profiles.slice(0, 8).map((p) => (
+              <motion.button
+                key={`recent-${p.id}`}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setSelectedProfile(p)}
+                className="flex-shrink-0 flex flex-col items-center gap-2"
+              >
+                <div className="w-14 h-14 rounded-2xl p-0.5 bg-gradient-to-tr from-primary-500 to-indigo-500">
+                  <div className="w-full h-full rounded-[0.85rem] border-2 border-white dark:border-gray-950 overflow-hidden bg-gray-100 italic font-black text-primary-500 flex items-center justify-center">
+                    {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" /> : p.name?.[0]}
+                  </div>
+                </div>
+                <span className="text-[9px] font-black uppercase opacity-60 tracking-wider w-14 truncate text-center">{p.name.split(' ')[0]}</span>
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      )}
       </div>
 
-      <div className="px-5 pt-6 max-w-md mx-auto h-[70vh] relative">
+      {/* Main Content Area */}
+      <div className={`flex-1 relative mb-24 px-5 ${searchQuery ? 'h-full' : ''}`}>
         {loading ? (
-          <div className="flex flex-col items-center justify-center h-full opacity-40">
+          <div className="flex flex-col items-center justify-center h-full text-primary-500">
             <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mb-4" />
-            <p className="text-[10px] font-black uppercase tracking-widest italic">Scanning Poly Students...</p>
+            <p className="text-[10px] font-black uppercase tracking-widest italic animate-pulse">Scanning Poly Students...</p>
           </div>
         ) : profiles.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-8">
@@ -200,10 +226,10 @@ export default function Discover() {
                   if (info.offset.x > 100) handleLike(currentProfile.id);
                   if (info.offset.x < -100) handlePass();
                 }}
-                initial={{ scale: 0.9, opacity: 0, x: 50, rotate: 5 }}
-                animate={{ scale: 1, opacity: 1, x: 0, rotate: 0 }}
-                exit={{ x: -500, opacity: 0 }}
-                className={`relative w-full h-full rounded-[3rem] overflow-hidden border-4 border-white/10 ${card}`}
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ x: -500, opacity: 0, rotate: -30 }}
+                className={`relative w-full h-full rounded-[3.5rem] overflow-hidden shadow-2xl border-2 border-white/10 ${card}`}
               >
                 {currentProfile.avatar_url ? (
                   <img src={currentProfile.avatar_url} alt={currentProfile.name} className="w-full h-full object-cover pointer-events-none" />
