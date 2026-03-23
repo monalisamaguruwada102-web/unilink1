@@ -112,9 +112,15 @@ export default function Feed() {
         // Progress Simulation
         const interval = setInterval(() => setUploadProgress(p => p < 90 ? p + 10 : p), 300);
         
-        const { error: uploadErr } = await supabase.storage.from('post-images').upload(path, postImage, { upsert: true });
+        const { error: uploadErr, data: uploadData } = await supabase.storage.from('post-images').upload(path, postImage, { 
+          upsert: true,
+          contentType: postImage.type 
+        });
         clearInterval(interval);
-        if (uploadErr) throw uploadErr;
+        if (uploadErr) {
+          console.error('Storage Upload Error:', uploadErr);
+          throw new Error(`Upload Failed: ${uploadErr.message}`);
+        }
         
         const { data: urlData } = supabase.storage.from('post-images').getPublicUrl(path);
         imageUrl = urlData.publicUrl;
@@ -137,8 +143,8 @@ export default function Feed() {
         alert('🚀 Post shared with campus!');
       }, 500);
     } catch (err: any) {
-      console.error('Post error:', err);
-      alert(`❌ Failed to post: ${err.message || 'Check connection'}`);
+      console.error('Post Error Details:', err);
+      alert(`❌ Failed to post: ${err.message || 'Check terminal console'}`);
       setUploadProgress(0);
     } finally {
       setUploading(false);
