@@ -366,7 +366,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
             posts: state.posts.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p)
           }));
         } else if (payload.eventType === 'DELETE') {
-          set((state) => ({ posts: state.posts.filter(p => p.id === payload.old.id) }));
+          set((state) => ({ posts: state.posts.filter(p => p.id !== payload.old.id) }));
         }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'post_comments' }, async (payload) => {
@@ -431,12 +431,21 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
             posts: isMe ? state.posts.map(p => p.id === payload.new.post_id ? { ...p, is_liked: true } : p) : state.posts
           }));
         } else if (payload.eventType === 'DELETE') {
+          const myId = (await supabase.auth.getSession()).data.session?.user.id;
           const isMe = payload.old.user_id === myId;
           set(state => ({
-            postLikes: state.postLikes.filter(pl => !(pl.post_id === payload.old.post_id && pl.user_id === payload.old.user_id)),
-            posts: isMe ? state.posts.map(p => p.id === payload.old.post_id ? { ...p, is_liked: false } : p) : state.posts
+            postLikes: state.postLikes.filter(pl => pl.post_id !== payload.old.post_id || pl.user_id !== payload.old.user_id),
+            posts: state.posts.map(p => p.id === payload.old.post_id 
+              ? { ...p, likes: Math.max(0, (p.likes || 1) - 1), is_liked: isMe ? false : p.is_liked } 
+              : p
+            )
           }));
         }
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'post_likes' }, (payload: any) => {
+         set(state => ({
+           posts: state.posts.map(p => p.id === payload.new.post_id ? { ...p, likes: (p.likes || 0) + 1 } : p)
+         }));
       });
       
     channel.subscribe((status) => {
