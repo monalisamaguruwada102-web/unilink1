@@ -34,6 +34,14 @@ CREATE TABLE IF NOT EXISTS post_likes (
   UNIQUE(post_id, user_id)
 );
 
+-- ENABLE REALTIME FOR MESSAGES
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'messages') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+  END IF;
+END $$;
+
 -- Enable RLS for post_likes
 ALTER TABLE post_likes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Anyone can see post likes" ON post_likes;
