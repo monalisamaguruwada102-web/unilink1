@@ -62,6 +62,12 @@ interface Post {
   created_at: string;
   users?: { name: string; avatar_url: string; course: string };
   comment_count?: number;
+  is_liked?: boolean;
+}
+
+interface PostLike {
+  post_id: string;
+  user_id: string;
 }
 
 interface Confession {
@@ -92,6 +98,7 @@ interface FeatureState {
   campusAlerts: CampusAlert[];
   confessions: Confession[];
   notifications: any[];
+  postLikes: PostLike[];
 
   toggleDarkMode: () => void;
   setIncognito: (val: boolean) => void;
@@ -111,6 +118,7 @@ interface FeatureState {
   
   addPost: (post: any) => void;
   likePost: (postId: string, postOwnerId: string, likerId: string) => Promise<void>;
+  unlikePost: (postId: string, likerId: string) => Promise<void>;
   fetchComments: (postId: string) => Promise<any[]>;
   addComment: (postId: string, userId: string, postOwnerId: string, content: string) => Promise<void>;
   
@@ -140,6 +148,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   campusAlerts: [],
   confessions: [],
   notifications: [],
+  postLikes: [],
 
   toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
   setIncognito: (val) => set({ isIncognito: val }),
@@ -210,18 +219,18 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   addPost: (post) => set(state => ({ posts: [post, ...state.posts] })),
 
   likePost: async (postId, postOwnerId, likerId) => {
-    const originalPosts = get().posts;
-    const post = originalPosts.find(p => p.id === postId);
-    if (!post) return;
+    // Check if already liked
+    const alreadyLiked = get().postLikes.some(pl => pl.post_id === postId && pl.user_id === likerId);
+    if (alreadyLiked) return;
 
-    // ⚡ Optimistic Update (UI reacts instantly)
-    const newLikes = (post.likes || 0) + 1;
+    // Optimistically update
     set(state => ({
-      posts: state.posts.map(p => p.id === postId ? { ...p, likes: newLikes } : p)
+      postLikes: [...state.postLikes, { post_id: postId, user_id: likerId }],
+      posts: state.posts.map(p => p.id === postId ? { ...p, likes: (p.likes || 0) + 1, is_liked: true } : p)
     }));
 
     try {
-      const { error } = await supabase.from('posts').update({ likes: newLikes }).eq('id', postId);
+      const { error } = await supabase.from('post_likes').insert({ post_id: postId, user_id: likerId });
       if (error) throw error;
       
       // Notify owner
@@ -234,9 +243,28 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
          });
       }
     } catch (err) {
-      // 🔄 Rollback on failure
-      set({ posts: originalPosts });
-      console.error('Like failed, rolled back:', err);
+      // Rollback
+      set(state => ({
+        postLikes: state.postLikes.filter(pl => !(pl.post_id === postId && pl.user_id === likerId)),
+        posts: state.posts.map(p => p.id === postId ? { ...p, likes: Math.max(0, (p.likes || 1) - 1), is_liked: false } : p)
+      }));
+      console.error('Like failed:', err);
+    }
+  },
+
+  unlikePost: async (postId, likerId) => {
+    // Optimistically remove
+    set(state => ({
+      postLikes: state.postLikes.filter(pl => !(pl.post_id === postId && pl.user_id === likerId)),
+      posts: state.posts.map(p => p.id === postId ? { ...p, likes: Math.max(0, (p.likes || 1) - 1), is_liked: false } : p)
+    }));
+
+    try {
+      const { error } = await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', likerId);
+      if (error) throw error;
+    } catch (err) {
+      // Rollback not trivial here, but the trigger will sync it and periodic fetch will fix it
+      console.error('Unlike failed:', err);
     }
   },
 
@@ -268,7 +296,8 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       { data: eventList },
       { data: confessionList },
       { data: storyList },
-      { data: postList }
+      { data: postList },
+      { data: myPostLikes }
     ] = await Promise.all([
       supabase.from('alerts').select('*').order('created_at', { ascending: false }),
       supabase.from('marketplace').select('*').limit(6),
@@ -276,7 +305,8 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       supabase.from('events').select('*'),
       supabase.from('confessions').select('*').order('created_at', { ascending: false }).limit(10),
       supabase.from('stories').select('*, users(name, avatar_url)').order('created_at', { ascending: false }),
-      supabase.from('posts').select('*, users(name, avatar_url, course), post_comments(count)').order('created_at', { ascending: false })
+      supabase.from('posts').select('*, users(name, avatar_url, course), post_comments(count)').order('created_at', { ascending: false }),
+      supabase.from('post_likes').select('post_id, user_id')
     ]);
 
     if (alerts) set({ campusAlerts: alerts });
@@ -284,11 +314,14 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     if (jobList) set({ jobs: jobList });
     if (eventList) set({ events: eventList });
     if (confessionList) set({ confessions: confessionList });
+    if (myPostLikes) set({ postLikes: myPostLikes });
     
     if (postList) {
+      const myId = (await supabase.auth.getSession()).data.session?.user.id;
       set({ posts: postList.map((p: any) => ({
         ...p,
-        comment_count: p.post_comments?.[0]?.count || 0
+        comment_count: p.post_comments?.[0]?.count || 0,
+        is_liked: myPostLikes?.some(pl => pl.post_id === p.id && pl.user_id === myId)
       }))});
     }
 
@@ -388,6 +421,22 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
         set((state) => ({ 
            notifications: [payload.new, ...state.notifications]
         }));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'post_likes' }, async (payload) => {
+        const myId = (await supabase.auth.getSession()).data.session?.user.id;
+        if (payload.eventType === 'INSERT') {
+          const isMe = payload.new.user_id === myId;
+          set(state => ({
+            postLikes: [...state.postLikes, payload.new as PostLike],
+            posts: isMe ? state.posts.map(p => p.id === payload.new.post_id ? { ...p, is_liked: true } : p) : state.posts
+          }));
+        } else if (payload.eventType === 'DELETE') {
+          const isMe = payload.old.user_id === myId;
+          set(state => ({
+            postLikes: state.postLikes.filter(pl => !(pl.post_id === payload.old.post_id && pl.user_id === payload.old.user_id)),
+            posts: isMe ? state.posts.map(p => p.id === payload.old.post_id ? { ...p, is_liked: false } : p) : state.posts
+          }));
+        }
       });
       
     channel.subscribe((status) => {

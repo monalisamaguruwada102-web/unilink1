@@ -47,7 +47,12 @@ export default function Profile() {
 
     if (!error) {
       const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-      setAvatarUrl(data.publicUrl + '?t=' + Date.now()); // cache bust
+      const publicUrl = data.publicUrl + '?t=' + Date.now();
+      setAvatarUrl(publicUrl);
+      
+      // Persist immediately
+      await supabase.from('users').update({ avatar_url: publicUrl }).eq('id', session.user.id);
+      await fetchProfile(session.user.id);
     }
     setUploading(false);
   };

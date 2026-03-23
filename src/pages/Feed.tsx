@@ -47,7 +47,7 @@ export default function Feed() {
   const { 
     stories, posts, isDarkMode, confessions, notifications,
     submitConfession, addStory, fetchFeatures, markNotificationsRead,
-    likePost, addComment, fetchComments, viewStory, reactToStory 
+    likePost, unlikePost, addComment, fetchComments, viewStory, reactToStory 
   } = useFeatureStore();
 
   useEffect(() => {
@@ -334,10 +334,10 @@ export default function Feed() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <button 
-                        onClick={() => likePost(post.id, post.user_id, session?.user.id || '')} 
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl transition ${isDarkMode ? 'bg-primary-500/10 text-primary-500 hover:bg-primary-500 hover:text-white' : 'bg-primary-50 text-primary-600 hover:bg-primary-100'} group`}
+                        onClick={() => post.is_liked ? unlikePost(post.id, session?.user.id || '') : likePost(post.id, post.user_id, session?.user.id || '')} 
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl transition ${post.is_liked ? 'bg-primary-500 text-white' : (isDarkMode ? 'bg-primary-500/10 text-primary-500 hover:bg-primary-500 hover:text-white' : 'bg-primary-50 text-primary-600 hover:bg-primary-100')} group`}
                       >
-                        <Heart size={18} fill={(post.likes > 0) ? "currentColor" : "none"} />
+                        <Heart size={18} fill={post.is_liked ? "currentColor" : "none"} strokeWidth={post.is_liked ? 0 : 2.5} />
                         <span className="text-xs font-black">{post.likes || 0}</span>
                       </button>
                       <button 
@@ -350,9 +350,21 @@ export default function Feed() {
                     </div>
                     <div className="flex items-center gap-2">
                       <button 
-                        onClick={() => { navigator.clipboard.writeText(window.location.origin + '/post/' + post.id); alert('🔗 Link copied! You can now reshare this on campus.'); }}
+                        onClick={async () => { 
+                          const shareData = {
+                            title: 'Poly Link Post',
+                            text: post.content || 'Check out this post on Poly Link!',
+                            url: window.location.origin + '/post/' + post.id
+                          };
+                          if (navigator.share) {
+                            try { await navigator.share(shareData); } catch (err) {}
+                          } else {
+                            navigator.clipboard.writeText(shareData.url);
+                            alert('🔗 Link copied to clipboard!');
+                          }
+                        }}
                         className={`p-3 rounded-2xl transition ${isDarkMode ? 'bg-gray-800 text-gray-400 hover:text-primary-500' : 'bg-gray-50 text-gray-600 hover:text-primary-600'}`}
-                        title="Reshare"
+                        title="Share post"
                       >
                         <Send size={18} className="-rotate-12" />
                       </button>

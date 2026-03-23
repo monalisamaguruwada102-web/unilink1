@@ -74,6 +74,14 @@ export default function Discover() {
     // Record the like
     await supabase.from('likes').upsert({ liker_id: session.user.id, liked_id: profileId });
 
+    // Notify the user
+    await supabase.from('notifications').insert({
+      user_id: profileId,
+      sender_id: session.user.id,
+      type: 'like_profile',
+      content: 'liked your profile! Swipe back to match.'
+    });
+
     // Check if it's mutual
     const { data: mutual } = await supabase
       .from('likes')
@@ -89,6 +97,12 @@ export default function Discover() {
         .insert({ user1_id: session.user.id, user2_id: profileId })
         .select()
         .single();
+      
+      // Also notify both of the match
+      await supabase.from('notifications').insert([
+        { user_id: profileId, sender_id: session.user.id, type: 'match', content: 'You have a new match! Start chatting.' },
+        { user_id: session.user.id, sender_id: profileId, type: 'match', content: 'You have a new match! Start chatting.' }
+      ]);
 
       const matchedProfile = profiles.find(p => p.id === profileId);
       setMatchedUser(matchedProfile);
