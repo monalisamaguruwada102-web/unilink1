@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Search, Sparkles, ChevronRight, MessageSquare, Info } from 'lucide-react';
+import { Heart, Search, ChevronRight, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Matches() {
@@ -17,20 +17,20 @@ export default function Matches() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchData();
+    fetchData(true);
     
     // Real-time updates for matches and likes
     const channel = supabase.channel('realtime_matches_likes_improved')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData(false))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, () => fetchData(false))
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [session]);
 
-  const fetchData = async () => {
+  const fetchData = async (isInitial = false) => {
     if (!session) return;
-    setLoading(true);
+    if (isInitial) setLoading(true);
     
     try {
       // 1. Fetch matches with latest messages in ONE SINGLE query
@@ -42,8 +42,8 @@ export default function Matches() {
           last_message_content,
           last_message_at,
           last_message_type,
-          user1:users!matches_user1_id_fkey(id, name, avatar_url, course, last_seen, is_premium, is_verified),
-          user2:users!matches_user2_id_fkey(id, name, avatar_url, course, last_seen, is_premium, is_verified)
+          user1:users!matches_user1_id_fkey(id, name, avatar_url, course, last_seen),
+          user2:users!matches_user2_id_fkey(id, name, avatar_url, course, last_seen)
         `)
         .or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`)
         .order('last_message_at', { ascending: false, nullsFirst: false })
@@ -138,7 +138,7 @@ export default function Matches() {
           <div>
             <h1 className="text-3xl font-black tracking-tighter italic">Poly Connect</h1>
             <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest flex items-center gap-2 mt-1">
-              <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> Find your perfect match
+              <div className="w-1.5 h-1.5 bg-green-500 rounded-full" /> Find your perfect match
             </p>
           </div>
           <div className="flex-1 max-w-[200px]">
@@ -195,7 +195,7 @@ export default function Matches() {
                  Don't wait! Swipe right on other Poly students and start your first conversation.
                </p>
                <button onClick={() => navigate('/discover')} className="w-full py-6 bg-gradient-to-br from-primary-500 to-indigo-600 text-white font-black rounded-[2.5rem] shadow-2xl shadow-primary-500/40 text-xs uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 transition">
-                 <Sparkles size={18} /> Explore Campus
+                 <Heart size={18} /> Explore Campus
                </button>
             </div>
           ) : (
@@ -262,8 +262,6 @@ export default function Matches() {
                         <div className="flex items-center justify-between mb-1">
                            <div className="flex items-center gap-1.5 truncate">
                              <h3 className="font-black text-base truncate">{match.user.name}</h3>
-                             {match.user.is_verified && <div className="w-3.5 h-3.5 bg-blue-500 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm"><Info size={8} strokeWidth={4} /></div>}
-                             {match.user.is_premium && <Sparkles size={12} className="text-amber-500 shrink-0" />}
                            </div>
                            <span className="text-[9px] opacity-30 font-bold uppercase tracking-widest shrink-0">
                              {new Date(match.matchedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
@@ -296,7 +294,7 @@ export default function Matches() {
           likedMe.length === 0 ? (
             <div className="text-center py-24 px-8">
                <div className="w-24 h-24 rounded-[3.5rem] bg-indigo-500/10 flex items-center justify-center text-indigo-500 mx-auto mb-8">
-                 <Sparkles size={44} fill="currentColor" className="opacity-20" />
+                 <Search size={44} className="opacity-20" />
                </div>
                <h2 className="text-3xl font-black mb-3 italic tracking-tighter text-indigo-500">Wait for it...</h2>
                <p className="text-xs opacity-40 font-bold mb-12 leading-relaxed uppercase tracking-widest">
@@ -345,7 +343,7 @@ export default function Matches() {
                              Match
                            </button>
                            <button className="w-10 h-10 bg-white/20 backdrop-blur-md text-white rounded-2xl flex items-center justify-center">
-                              <Info size={14} />
+                              <Search size={14} />
                            </button>
                          </div>
                       </div>
@@ -363,7 +361,7 @@ export default function Matches() {
         <div className="px-5 mt-12 pb-20">
            <div className="flex items-center justify-between mb-4 px-2">
              <p className="text-[10px] font-black uppercase tracking-widest opacity-30 flex items-center gap-2">
-               <Sparkles size={14} className="text-primary-500" /> New Faces on Campus
+               <Heart size={14} className="text-primary-500" /> New Faces on Campus
              </p>
              <ChevronRight size={16} className="opacity-10" />
            </div>

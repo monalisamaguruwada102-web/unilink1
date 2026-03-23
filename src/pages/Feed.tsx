@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
-import { Heart, MessageCircle, Image, Send, X, Plus, Lock, MoreHorizontal, Hash, ShieldAlert, Trash2, Sparkles } from 'lucide-react';
+import { Heart, MessageCircle, Image, Send, X, Plus, Lock, MoreHorizontal, Hash, ShieldAlert, Trash2 } from 'lucide-react';
 
 function SkeletonPost({ isDarkMode }: { isDarkMode: boolean }) {
   return (
@@ -199,17 +199,10 @@ export default function Feed() {
             )}
           </button>
           <button
-            onClick={() => {
-              if (profile?.is_premium) {
-                setShowCreatePost(true);
-              } else {
-                alert('💎 Premium Feature: Only premium members can broadcast to campus! Upgrade in profile.');
-              }
-            }}
-            className={`flex items-center gap-2 px-4 py-2 font-black text-[11px] uppercase tracking-widest rounded-2xl shadow-lg transition-all active:scale-95 ${profile?.is_premium ? 'bg-primary-500 text-white shadow-primary-500/30' : 'bg-amber-500 text-white shadow-amber-500/30'}`}
+            onClick={() => setShowCreatePost(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white font-black text-[11px] uppercase tracking-widest rounded-2xl shadow-lg shadow-primary-500/30 transition-all active:scale-95"
           >
-            {profile?.is_premium ? <Plus size={14} strokeWidth={3} /> : <Sparkles size={14} />} 
-            {profile?.is_premium ? 'Post' : 'Go Premium'}
+            <Plus size={14} strokeWidth={3} /> Post
           </button>
         </div>
       </div>
@@ -292,21 +285,7 @@ export default function Feed() {
 
       {/* Social Feed Posts */}
       <div className="relative space-y-4 px-4 pb-10">
-        {!profile?.is_premium && (
-           <div className="absolute inset-x-4 top-0 z-10 p-8 rounded-[2.5rem] bg-gradient-to-b from-primary-500/20 to-transparent backdrop-blur-md border border-white/20 text-center space-y-4 overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/20 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-              <Sparkles className="mx-auto text-amber-500" size={40} />
-              <h3 className="text-xl font-black uppercase tracking-tighter">Premium Wall Only</h3>
-              <p className="text-[10px] font-bold opacity-60 leading-relaxed uppercase tracking-widest px-4">
-                Unlock the campus wall and see what everyone is buzzing about! Premium members get full access.
-              </p>
-              <button className="w-full py-4 bg-amber-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-amber-500/40">
-                Upgrade to Premium
-              </button>
-           </div>
-        )}
-        
-        <div className={!profile?.is_premium ? 'opacity-20 pointer-events-none blur-sm' : ''}>
+        <div className="">
           {loading ? (
             <>
               <SkeletonPost isDarkMode={isDarkMode} />
