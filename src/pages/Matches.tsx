@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Search, Sparkles, ChevronRight, MessageSquare, Info, XCircle } from 'lucide-react';
+import { Heart, Search, Sparkles, ChevronRight, MessageSquare, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Matches() {
