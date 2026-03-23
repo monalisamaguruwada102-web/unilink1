@@ -461,20 +461,13 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
         console.log('⚡ Connected to Kwekwe Poly Realtime Social Network feed!');
       }
     });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   },
 
   updateUserProfile: async (userId, updates) => {
      await supabase.from('users').update(updates).eq('id', userId);
-  },
-
-  markNotificationsRead: async (userId: string) => {
-    try {
-      await supabase.from('notifications').update({ is_read: true }).eq('user_id', userId);
-      set(state => ({
-        notifications: state.notifications.map(n => ({ ...n, is_read: true }))
-      }));
-    } catch (err) {
-      console.error('Failed to mark notifications read:', err);
-    }
   }
 }));
