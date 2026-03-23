@@ -26,7 +26,7 @@ export default function Matches() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [session]);
+  }, [session?.user?.id]);
 
   const fetchData = async (isInitial = false) => {
     if (!session) return;

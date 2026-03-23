@@ -45,6 +45,12 @@ export default function App() {
       (window as any).deferredPrompt = e;
     });
 
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [setSession, fetchProfile, fetchFeatures]);
+
+  useEffect(() => {
     // Online Status Heartbeat
     let heartbeatInterval: any;
     if (session?.user?.id) {
@@ -58,10 +64,9 @@ export default function App() {
     }
 
     return () => {
-      subscription.unsubscribe();
       if (heartbeatInterval) clearInterval(heartbeatInterval);
     };
-  }, [setSession, fetchProfile, session]);
+  }, [session?.user?.id]);
 
   if (loading) {
     return (
