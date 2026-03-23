@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
-import { LogOut, Save, Camera, MapPin, GraduationCap, User } from 'lucide-react';
+import { LogOut, Save, Camera, MapPin, GraduationCap, User, Download } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const KWEKWE_POLY_DEPARTMENTS = [
@@ -25,7 +25,14 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [canInstall, setCanInstall] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // Check if we captured the install prompt
+    if ((window as any).deferredPrompt) setCanInstall(true);
+    window.addEventListener('beforeinstallprompt', () => setCanInstall(true));
+  }, []);
 
   useEffect(() => {
     if (profile) {
@@ -107,6 +114,16 @@ export default function Profile() {
       setSaving(false);
     }
   };
+  const installApp = async () => {
+    const prompt = (window as any).deferredPrompt;
+    if (!prompt) return;
+    prompt.prompt();
+    const { outcome } = await prompt.userChoice;
+    if (outcome === 'accepted') {
+      (window as any).deferredPrompt = null;
+      setCanInstall(false);
+    }
+  };
 
   const card = isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100';
   const input = isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-200 text-gray-900';
@@ -115,7 +132,18 @@ export default function Profile() {
     <div className={`min-h-screen pb-36 transition-colors duration-300 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}>
       {/* Header */}
       <div className={`sticky top-0 z-20 flex items-center justify-between px-5 py-4 border-b backdrop-blur-xl ${isDarkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/80 border-gray-100'}`}>
-        <h1 className="text-2xl font-black tracking-tighter">My Profile</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-black tracking-tighter">My Profile</h1>
+          {canInstall && (
+            <button 
+              onClick={installApp}
+              className="bg-primary-500 text-white p-2 rounded-xl animate-bounce shadow-lg"
+              title="Install App"
+            >
+              <Download size={16} />
+            </button>
+          )}
+        </div>
         <button
           onClick={() => signOut()}
           className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-red-500/10 text-red-500 font-black text-[11px] uppercase tracking-widest"

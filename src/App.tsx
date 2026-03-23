@@ -39,12 +39,15 @@ export default function App() {
       }
     });
 
-    // Feature 16: PWA Push Notifications Permission
-    if ('Notification' in window) {
-      Notification.requestPermission();
-    }
+    // Feature 16: PWA Install Prompt Capture
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      (window as any).deferredPrompt = e;
+    });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [setSession, fetchProfile]);
 
   if (loading) {
