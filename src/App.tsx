@@ -16,6 +16,7 @@ import Matches from './pages/Matches';
 import Chat from './pages/Chat';
 import Profile from './pages/Profile';
 import GroupChat from './pages/GroupChat';
+import Admin from './pages/Admin';
 
 export default function App() {
   const { session, profile, setSession, fetchProfile, loading } = useAuthStore();
@@ -140,6 +141,7 @@ function AppLayout({ isDarkMode }: { isDarkMode: boolean }) {
         <Route path="/chat/:matchId" element={<Chat />} />
         <Route path="/groups/:groupId" element={<GroupChat />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {!isChat && <BottomNav />}

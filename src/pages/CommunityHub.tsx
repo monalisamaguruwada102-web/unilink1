@@ -9,7 +9,7 @@ import { supabase } from '../lib/supabase';
 type Modal = 'group' | null;
 
 export default function CommunityHub() {
-  const { isDarkMode, courseGroups, createGroup } = useFeatureStore();
+  const { isDarkMode, courseGroups, createGroup, joinGroup } = useFeatureStore();
   const { session } = useAuthStore();
   const [modal, setModal] = useState<Modal>(null);
   const [form, setForm] = useState({ groupName: '', groupCourse: '', groupDescription: '' });
@@ -33,15 +33,8 @@ export default function CommunityHub() {
   const handleJoinGroup = async (groupId: string) => {
     if (!session) return;
     setJoining(groupId);
-    const { error } = await supabase.from('group_members').upsert({
-      group_id: groupId,
-      user_id: session.user.id,
-    });
-    if (!error) {
-      navigate(`/groups/${groupId}`);
-    } else {
-      alert('Could not join the group. Make sure you have run community_groups.sql in Supabase.');
-    }
+    await joinGroup(groupId, session.user.id);
+    navigate(`/groups/${groupId}`);
     setJoining(null);
   };
 

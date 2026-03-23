@@ -429,10 +429,10 @@ export default function Matches() {
                         locationMatch.user.location_updated_at && (new Date().getTime() - new Date(locationMatch.user.location_updated_at).getTime()) < 300000
                           ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
                       }`} />
-                      <p className="text-[10px] font-bold uppercase tracking-widest opacity-50">
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-50">
                         {locationMatch.user.location_updated_at
                           ? `Updated ${new Date(locationMatch.user.location_updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                          : 'Location unknown'}
+                          : locationMatch.user.latitude ? 'Nearby Polytech' : 'Location unknown'}
                       </p>
                     </div>
                   </div>
