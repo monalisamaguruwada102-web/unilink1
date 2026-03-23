@@ -50,8 +50,9 @@ export default function Matches() {
         .order('created_at', { ascending: false });
         
       if (matchesData) {
-        setMatches(matchesData.map((m: any) => {
-          const otherUser = m.user1.id === session.user.id ? m.user2 : m.user1;
+        const validMatches = matchesData.filter((m: any) => m.user1 && m.user2);
+        setMatches(validMatches.map((m: any) => {
+          const otherUser = m.user1?.id === session.user.id ? m.user2 : m.user1;
           return { 
             id: m.id, 
             user: otherUser, 
@@ -95,7 +96,7 @@ export default function Matches() {
          .from('matches')
          .select('id')
          .or(`and(user1_id.eq.${session.user.id},user2_id.eq.${userId}),and(user1_id.eq.${userId},user2_id.eq.${session.user.id})`)
-         .single();
+         .maybeSingle();
 
        if (existing) {
          navigate(`/chat/${existing.id}`);
@@ -231,7 +232,7 @@ export default function Matches() {
               <AnimatePresence>
                 {matches
                   .filter(m => m.lastMessage) // Only show those with messages in the main list
-                  .filter(m => m.user.name.toLowerCase().includes(searchQuery.toLowerCase()) || (m.user.course || '').toLowerCase().includes(searchQuery.toLowerCase()))
+                  .filter(m => m.user && m.user.name && m.user.name.toLowerCase().includes(searchQuery.toLowerCase()) || (m.user?.course || '').toLowerCase().includes(searchQuery.toLowerCase()))
                   .map((match, idx) => (
                   <motion.div
                     key={match.id}

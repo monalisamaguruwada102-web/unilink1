@@ -74,7 +74,7 @@ export default function Discover() {
       .select('id')
       .eq('liker_id', profileId)
       .eq('liked_id', session.user.id)
-      .single();
+      .maybeSingle();
 
     if (mutual) {
       // Create a match record
