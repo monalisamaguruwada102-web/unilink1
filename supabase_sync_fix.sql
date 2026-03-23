@@ -2,6 +2,14 @@
 -- SYNC & PERSISTENCE FIXES
 -- ============================================
 
+-- 0. ENSURE POSTS TABLE HAS LIKES COLUMN
+DO $$ 
+BEGIN 
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='posts' AND column_name='likes') THEN
+    ALTER TABLE posts ADD COLUMN likes INTEGER DEFAULT 0;
+  END IF;
+END $$;
+
 -- 1. POST LIKES TABLE (Robust liking)
 CREATE TABLE IF NOT EXISTS post_likes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

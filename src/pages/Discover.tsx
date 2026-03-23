@@ -49,12 +49,15 @@ export default function Discover() {
       // Fetch basics defensively to avoid 'missing column' crashes
       let query = supabase
         .from('users')
-        .select('id, name, age, course, bio, avatar_url, college')
-        .not('id', 'in', `(${excludeIds.map(id => `'${id}'`).join(',')})`)
+        .select('id, name, age, course, bio, avatar_url, college');
+
+      if (excludeIds.length > 0) {
+        query = query.not('id', 'in', `(${excludeIds.join(',')})`);
+      }
+
+      const { data, error } = await query
         .order('created_at', { ascending: false })
         .limit(20);
-
-      const { data, error } = await query;
 
       if (error) throw error;
       setProfiles(data || []);
