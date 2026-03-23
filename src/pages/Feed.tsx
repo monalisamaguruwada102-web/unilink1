@@ -112,7 +112,7 @@ export default function Feed() {
         // Progress Simulation
         const interval = setInterval(() => setUploadProgress(p => p < 90 ? p + 10 : p), 300);
         
-        const { error: uploadErr, data: uploadData } = await supabase.storage.from('post-images').upload(path, postImage, { 
+        const { error: uploadErr } = await supabase.storage.from('post-images').upload(path, postImage, { 
           upsert: true,
           contentType: postImage.type 
         });
