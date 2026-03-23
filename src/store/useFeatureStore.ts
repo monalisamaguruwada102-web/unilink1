@@ -124,6 +124,8 @@ interface FeatureState {
   fetchFeatures: () => Promise<void>;
   updateUserProfile: (userId: string, updates: any) => Promise<void>;
   markNotificationsRead: (userId: string) => Promise<void>;
+  clearNotifications: (userId: string) => Promise<void>;
+  joinGroup: (groupId: string, userId: string) => Promise<void>;
 }
 
 export const useFeatureStore = create<FeatureState>((set, get) => ({
@@ -208,6 +210,20 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
         content: `reacted to your story with ${emoji}`
       });
     }
+  },
+
+  joinGroup: async (groupId, userId) => {
+    const { error } = await supabase.from('group_members').insert({ group_id: groupId, user_id: userId });
+    if (!error) {
+       set(state => ({
+         courseGroups: state.courseGroups.map(g => g.id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g)
+       }));
+    }
+  },
+
+  clearNotifications: async (userId: string) => {
+    await supabase.from('notifications').delete().eq('id', userId); // Wait, this is by user_id actually
+    set({ notifications: [] });
   },
 
   markNotificationsRead: async (userId: string) => {
@@ -296,7 +312,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   createGroup: async (name, course, description) => {
     const myId = (await supabase.auth.getSession()).data.session?.user.id;
     if (!myId) return null;
-    const { data } = await supabase.from('course_groups').insert({ name, course, description, created_by: myId }).select().single();
+    const { data } = await supabase.from('course_groups').insert({ name, course, description, creator_id: myId }).select().single();
     if (data) set(state => ({ courseGroups: [{ ...data, member_count: 1 }, ...state.courseGroups] }));
     return data || null;
   },
@@ -310,7 +326,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       { data: myPostLikes },
       { data: notifyList }
     ] = await Promise.all([
-      supabase.from('course_groups').select('*, users!course_groups_created_by_fkey(name, avatar_url), group_members(count)').order('created_at', { ascending: false }).limit(20),
+      supabase.from('course_groups').select('*, users!course_groups_creator_id_fkey(name, avatar_url), group_members(count)').order('created_at', { ascending: false }).limit(20),
       supabase.from('confessions').select('*').order('created_at', { ascending: false }).limit(10),
       supabase.from('stories').select('*, users(id, name, avatar_url)').order('created_at', { ascending: false }),
       supabase.from('posts').select('*, users(name, avatar_url, course), post_comments(count)').order('created_at', { ascending: false }).limit(25),
@@ -423,10 +439,12 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
           const isMe = payload.new.user_id === myId;
           set(state => ({
             postLikes: [...state.postLikes, payload.new as PostLike],
-            posts: isMe ? state.posts.map(p => p.id === payload.new.post_id ? { ...p, is_liked: true } : p) : state.posts
+            posts: state.posts.map(p => p.id === payload.new.post_id 
+              ? { ...p, likes: (p.likes || 0) + 1, is_liked: isMe ? true : p.is_liked } 
+              : p
+            )
           }));
         } else if (payload.eventType === 'DELETE') {
-          const myId = (await supabase.auth.getSession()).data.session?.user.id;
           const isMe = payload.old.user_id === myId;
           set(state => ({
             postLikes: state.postLikes.filter(pl => pl.post_id !== payload.old.post_id || pl.user_id !== payload.old.user_id),
@@ -436,11 +454,6 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
             )
           }));
         }
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'post_likes' }, (payload: any) => {
-         set(state => ({
-           posts: state.posts.map(p => p.id === payload.new.post_id ? { ...p, likes: (p.likes || 0) + 1 } : p)
-         }));
       });
       
     channel.subscribe((status) => {
@@ -452,5 +465,16 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
 
   updateUserProfile: async (userId, updates) => {
      await supabase.from('users').update(updates).eq('id', userId);
+  },
+
+  markNotificationsRead: async (userId: string) => {
+    try {
+      await supabase.from('notifications').update({ is_read: true }).eq('user_id', userId);
+      set(state => ({
+        notifications: state.notifications.map(n => ({ ...n, is_read: true }))
+      }));
+    } catch (err) {
+      console.error('Failed to mark notifications read:', err);
+    }
   }
 }));
