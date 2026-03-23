@@ -37,6 +37,22 @@ CREATE TABLE IF NOT EXISTS post_likes (
 -- ENABLE REALTIME FOR MESSAGES
 DO $$
 BEGIN
+  -- Create table if it doesn't exist
+  CREATE TABLE IF NOT EXISTS messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    match_id UUID REFERENCES matches(id) ON DELETE CASCADE NOT NULL,
+    sender_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    content TEXT NOT NULL,
+    type TEXT DEFAULT 'text',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+
+  -- Ensure 'type' column exists if the table already existed
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='messages' AND column_name='type') THEN
+    ALTER TABLE messages ADD COLUMN type TEXT DEFAULT 'text';
+  END IF;
+
+  -- Add to replication
   IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'messages') THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE messages;
   END IF;

@@ -76,12 +76,26 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     setInput('');
     setShowStickers(false);
 
-    await supabase.from('messages').insert({
+    // Defensive check for UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(matchId)) {
+      console.error('Invalid matchId format:', matchId);
+      alert('❌ Error: Chat session expired or invalid. Please back to Matches.');
+      return;
+    }
+
+    const { error: msgError } = await supabase.from('messages').insert({
       match_id: matchId,
       sender_id: session.user.id,
       content,
       type,
     });
+
+    if (msgError) {
+       console.error('Message send failed:', msgError);
+       alert(`❌ Message failed: ${msgError.message}`);
+       return;
+    }
 
     // Notify the other user of the message
     await supabase.from('notifications').insert({
