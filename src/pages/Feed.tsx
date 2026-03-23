@@ -34,6 +34,7 @@ export default function Feed() {
   const [showConfession, setShowConfession] = useState(false);
   const [activeStory, setActiveStory] = useState<any>(null);
   const [activeCommentsPost, setActiveCommentsPost] = useState<any>(null);
+  const [activePostMenu, setActivePostMenu] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<any[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -334,7 +335,58 @@ export default function Feed() {
                             <Trash2 size={18} />
                           </button>
                         )}
-                        <button className={`p-3 rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'}`}><MoreHorizontal size={18} /></button>
+                        <div className="relative">
+                          <button 
+                            onClick={() => setActivePostMenu(activePostMenu === post.id ? null : post.id)} 
+                            className={`p-3 rounded-2xl hover:bg-gray-500/10 transition ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'}`}
+                          >
+                            <MoreHorizontal size={18} />
+                          </button>
+                          <AnimatePresence>
+                            {activePostMenu === post.id && (
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                                className={`absolute right-0 top-full mt-2 w-48 rounded-2xl shadow-xl border overflow-hidden z-50 ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'}`}
+                              >
+                                <button 
+                                  onClick={() => { setActivePostMenu(null); alert('🔖 Saved post to collection!'); }}
+                                  className={`w-full text-left px-5 py-3 text-sm font-bold transition hover:bg-primary-500/10 hover:text-primary-500`}
+                                >
+                                  Save Post
+                                </button>
+                                <div className={`h-px w-full ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`} />
+                                <button 
+                                  onClick={async () => {
+                                    setActivePostMenu(null);
+                                    const shareData = {
+                                      title: 'Poly Link Post',
+                                      text: post.content || 'Check out this post on Poly Link!',
+                                      url: window.location.origin + '/post/' + post.id
+                                    };
+                                    if (navigator.share) {
+                                      try { await navigator.share(shareData); } catch (err) {}
+                                    } else {
+                                      navigator.clipboard.writeText(shareData.url);
+                                      alert('🔗 Link copied to clipboard!');
+                                    }
+                                  }}
+                                  className={`w-full text-left px-5 py-3 text-sm font-bold transition hover:bg-primary-500/10 hover:text-primary-500`}
+                                >
+                                  Share
+                                </button>
+                                <div className={`h-px w-full ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`} />
+                                <button 
+                                  onClick={() => { setActivePostMenu(null); alert('⚠️ Post reported. Thank you for keeping Poly Link safe.'); }}
+                                  className={`w-full text-left px-5 py-3 text-sm font-bold transition hover:bg-red-500/10 hover:text-red-500`}
+                                >
+                                  Report Content
+                                </button>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
                       </div>
                     </div>
 

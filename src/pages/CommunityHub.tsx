@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useFeatureStore } from '../store/useFeatureStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { Briefcase, Wrench, Car, AlertTriangle, ChevronRight, Bell, Plus, X, Package } from 'lucide-react';
+import { Briefcase, Wrench, ChevronRight, Bell, Plus, X, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
@@ -10,7 +10,7 @@ type Tab = 'all' | 'groups' | 'jobs' | 'services';
 type Modal = 'group' | 'job' | null;
 
 export default function CommunityHub() {
-  const { isDarkMode, courseGroups, jobs, campusAlerts, createGroup } = useFeatureStore();
+  const { isDarkMode, courseGroups, jobs, createGroup } = useFeatureStore();
   const { session } = useAuthStore();
   const [activeTab, setActiveTab] = useState<Tab>('all');
   const [modal, setModal] = useState<Modal>(null);
@@ -65,43 +65,7 @@ export default function CommunityHub() {
         </motion.button>
       </header>
 
-      {/* Live Alerts */}
-      <div className="mb-12">
-        <div className="flex justify-between items-center mb-6 px-2">
-          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] opacity-40 flex items-center gap-2">
-            <AlertTriangle size={14} className="text-yellow-500" />
-            Campus & Utility Alerts
-          </h3>
-          <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 animate-pulse uppercase tracking-widest">Live</span>
-        </div>
-        <div className="space-y-4">
-          {campusAlerts.length === 0 ? (
-            <div className={`p-8 rounded-[2.5rem] border border-dashed text-center ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
-               <p className="text-[10px] font-black uppercase tracking-widest opacity-40">No active alerts. Campus is all clear 🟢</p>
-            </div>
-          ) : (
-            campusAlerts.map(alert => (
-              <motion.div
-                key={alert.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className={`p-6 rounded-[2.5rem] border flex items-center justify-between transition-all group ${isDarkMode ? 'bg-yellow-500/5 border-yellow-500/20' : 'bg-yellow-50 border-yellow-100'}`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-yellow-500 text-white flex items-center justify-center shadow-lg shadow-yellow-500/30">
-                    <AlertTriangle size={24} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest opacity-60 text-yellow-600">{alert.type} ALERT</p>
-                    <p className="text-sm font-black">{alert.status}</p>
-                  </div>
-                </div>
-                <ChevronRight size={20} className="opacity-20 group-hover:opacity-100 transition" />
-              </motion.div>
-            ))
-          )}
-        </div>
-      </div>
+
 
       {/* Tabs */}
       <div className="flex gap-3 mb-10 overflow-x-auto hide-scrollbar pb-4 px-2">
@@ -214,20 +178,7 @@ export default function CommunityHub() {
         )}
       </div>
 
-      {/* Ride Share */}
-      <div className="mt-16 p-10 rounded-[4rem] bg-gradient-to-br from-indigo-600 to-primary-600 text-white shadow-2xl shadow-indigo-500/40 relative overflow-hidden group">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-[80px] -mr-32 -mt-32" />
-        <div className="relative z-10 text-center">
-            <div className="w-16 h-16 rounded-[2rem] bg-white/20 backdrop-blur-xl flex items-center justify-center shadow-2xl mx-auto mb-8">
-              <Car size={32} />
-            </div>
-            <h3 className="text-2xl font-black mb-3 tracking-tighter leading-none uppercase">Need a Ride?</h3>
-            <p className="text-xs font-medium opacity-80 mb-8 leading-loose uppercase tracking-[0.2em]">Share your transport plans and split the fare</p>
-            <button className="w-full py-5 bg-white text-indigo-600 rounded-3xl font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-black/40 hover:scale-105 active:scale-95 transition-all">
-              Broadcast Ride Share
-            </button>
-        </div>
-      </div>
+
 
       <AnimatePresence>
         {modal && (

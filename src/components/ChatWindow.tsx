@@ -19,6 +19,7 @@ interface ChatWindowProps {
     id: string;
     name: string;
     avatar_url: string;
+    last_seen?: string;
   };
   onBack: () => void;
 }
@@ -36,6 +37,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   const { isDarkMode } = useFeatureStore();
   const [showMenu, setShowMenu] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const isOnline = otherUser.last_seen ? (new Date().getTime() - new Date(otherUser.last_seen).getTime()) < 60000 * 3 : false;
 
   useEffect(() => {
     fetchMessages();
@@ -123,11 +125,13 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
                 {otherUser.name.charAt(0)}
               </div>
             )}
-            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white dark:border-gray-900" />
+            <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-gray-900 ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`} />
           </div>
           <div>
             <h2 className="font-black text-base">{otherUser.name}</h2>
-            <p className="text-[10px] font-bold text-green-500 uppercase tracking-widest leading-none mt-0.5">Online</p>
+            <p className={`text-[10px] font-bold uppercase tracking-widest leading-none mt-0.5 ${isOnline ? 'text-green-500' : 'text-gray-400'}`}>
+              {isOnline ? 'Online' : 'Offline'}
+            </p>
           </div>
         </div>
         <div className="relative">

@@ -20,8 +20,8 @@ export default function Chat() {
       .from('matches')
       .select(`
         id,
-        user1:users!user1_id(id, name, avatar_url),
-        user2:users!user2_id(id, name, avatar_url)
+        user1:users!user1_id(id, name, avatar_url, last_seen),
+        user2:users!user2_id(id, name, avatar_url, last_seen)
       `)
       .eq('id', matchId)
       .single();
