@@ -326,7 +326,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       { data: myPostLikes },
       { data: notifyList }
     ] = await Promise.all([
-      supabase.from('course_groups').select('*, users!course_groups_creator_id_fkey(name, avatar_url), group_members(count)').order('created_at', { ascending: false }).limit(20),
+      supabase.from('course_groups').select('*, users(name, avatar_url)').order('created_at', { ascending: false }).limit(20),
       supabase.from('confessions').select('*').order('created_at', { ascending: false }).limit(10),
       supabase.from('stories').select('*, users(id, name, avatar_url)').order('created_at', { ascending: false }),
       supabase.from('posts').select('*, users(name, avatar_url, course), post_comments(count)').order('created_at', { ascending: false }).limit(25),
