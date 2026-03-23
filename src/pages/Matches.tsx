@@ -11,6 +11,7 @@ export default function Matches() {
   const [matches, setMatches] = useState<any[]>([]);
   const [likedMe, setLikedMe] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const { session } = useAuthStore();
   const { isDarkMode } = useFeatureStore();
   const navigate = useNavigate();
@@ -32,22 +33,35 @@ export default function Matches() {
     setLoading(true);
     
     try {
-      // 1. Fetch matches with latest messages
+      // 1. Fetch matches with latest messages in ONE SINGLE query
       const { data: matchesData } = await supabase
         .from('matches')
         .select(`
           id,
           created_at,
-          user1:users!matches_user1_id_fkey(id, name, avatar_url, course),
-          user2:users!matches_user2_id_fkey(id, name, avatar_url, course)
+          last_message_content,
+          last_message_at,
+          last_message_type,
+          user1:users!matches_user1_id_fkey(id, name, avatar_url, course, last_seen, is_premium, is_verified),
+          user2:users!matches_user2_id_fkey(id, name, avatar_url, course, last_seen, is_premium, is_verified)
         `)
         .or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`)
+        .order('last_message_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
         
       if (matchesData) {
         setMatches(matchesData.map((m: any) => {
           const otherUser = m.user1.id === session.user.id ? m.user2 : m.user1;
-          return { id: m.id, user: otherUser, matchedAt: m.created_at };
+          return { 
+            id: m.id, 
+            user: otherUser, 
+            matchedAt: m.created_at,
+            lastMessage: m.last_message_content ? {
+                content: m.last_message_content,
+                created_at: m.last_message_at,
+                type: m.last_message_type
+            } : null
+          };
         }));
       }
 
@@ -57,7 +71,7 @@ export default function Matches() {
 
       const { data: whoLikedMe } = await supabase
         .from('likes')
-        .select('liker_id, users:users!likes_liker_id_fkey(id, name, avatar_url, course, bio)')
+        .select('liker_id, users:users!likes_liker_id_fkey(id, name, avatar_url, course, bio, last_seen)')
         .eq('liked_id', session.user.id);
 
       if (whoLikedMe) {
@@ -127,9 +141,18 @@ export default function Matches() {
               <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> Find your perfect match
             </p>
           </div>
-          <button className={`p-3 rounded-2xl transition-all ${isDarkMode ? 'bg-gray-900 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
-            <Search size={20} />
-          </button>
+          <div className="flex-1 max-w-[200px]">
+            <div className={`flex items-center px-4 py-2 rounded-2xl border transition-all ${isDarkMode ? 'bg-gray-900 border-gray-800 focus-within:border-primary-500' : 'bg-gray-100 border-transparent focus-within:bg-white focus-within:border-primary-500'}`}>
+              <Search size={16} className="opacity-40 mr-2" />
+              <input 
+                type="text" 
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-transparent border-none outline-none text-[11px] font-bold w-full uppercase tracking-widest"
+              />
+            </div>
+          </div>
         </div>
 
         {/* Custom Segmented Control */}
@@ -177,9 +200,39 @@ export default function Matches() {
             </div>
           ) : (
             <div className="space-y-4">
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-30 mb-2">Recent Connections</p>
+              {/* New Matches Row (No messages yet) */}
+              {matches.some(m => !m.lastMessage) && (
+                <div className="mb-8">
+                   <p className="text-[10px] font-black uppercase tracking-widest opacity-30 mb-4 px-2">New Connections</p>
+                   <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
+                      {matches.filter(m => !m.lastMessage).map(m => (
+                        <button 
+                          key={m.id}
+                          onClick={() => navigate(`/chat/${m.id}`)}
+                          className="flex-shrink-0 flex flex-col items-center gap-2"
+                        >
+                           <div className="w-20 h-20 rounded-[2.2rem] p-1 bg-gradient-to-tr from-primary-500 to-indigo-500 shadow-lg">
+                              <div className="w-full h-full rounded-[2rem] border-2 border-white dark:border-gray-950 overflow-hidden bg-gray-100">
+                                 {m.user.avatar_url ? (
+                                   <img src={m.user.avatar_url} className="w-full h-full object-cover" />
+                                 ) : (
+                                   <div className="w-full h-full flex items-center justify-center font-black text-2xl text-primary-500">{m.user.name?.[0]}</div>
+                                 )}
+                              </div>
+                           </div>
+                           <span className="text-[10px] font-black uppercase tracking-tight opacity-70 max-w-[80px] truncate">{m.user.name}</span>
+                        </button>
+                      ))}
+                   </div>
+                </div>
+              )}
+
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-30 mb-2">Recent Conversations</p>
               <AnimatePresence>
-                {matches.map((match, idx) => (
+                {matches
+                  .filter(m => m.lastMessage) // Only show those with messages in the main list
+                  .filter(m => m.user.name.toLowerCase().includes(searchQuery.toLowerCase()) || (m.user.course || '').toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map((match, idx) => (
                   <motion.div
                     key={match.id}
                     initial={{ opacity: 0, x: -20 }}
@@ -198,18 +251,36 @@ export default function Matches() {
                            </div>
                          )}
                        </div>
-                       <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full border-4 border-white dark:border-gray-900" />
+                       <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-4 border-white dark:border-gray-900 ${
+                         match.user.last_seen && (new Date().getTime() - new Date(match.user.last_seen).getTime() < 60000) 
+                         ? 'bg-green-500' 
+                         : 'bg-gray-400'
+                       }`} />
                     </div>
                     
                     <div className="flex-1 overflow-hidden">
-                       <div className="flex items-center justify-between mb-1">
-                          <h3 className="font-black text-base truncate">{match.user.name}</h3>
-                          <span className="text-[9px] opacity-30 font-bold uppercase tracking-widest">
-                            {new Date(match.matchedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                          </span>
-                       </div>
-                       <p className="text-[10px] font-bold text-primary-500 uppercase tracking-widest mb-1">{match.user.course || 'Campus Resident'}</p>
-                       <p className="text-xs opacity-50 font-medium truncate italic truncate pr-4">Tap to start chatting...</p>
+                        <div className="flex items-center justify-between mb-1">
+                           <div className="flex items-center gap-1.5 truncate">
+                             <h3 className="font-black text-base truncate">{match.user.name}</h3>
+                             {match.user.is_verified && <div className="w-3.5 h-3.5 bg-blue-500 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm"><Info size={8} strokeWidth={4} /></div>}
+                             {match.user.is_premium && <Sparkles size={12} className="text-amber-500 shrink-0" />}
+                           </div>
+                           <span className="text-[9px] opacity-30 font-bold uppercase tracking-widest shrink-0">
+                             {new Date(match.matchedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                           </span>
+                        </div>
+                       <p className="text-[10px] font-bold text-primary-500 uppercase tracking-widest mb-1 truncate">
+                         {match.user.last_seen && (new Date().getTime() - new Date(match.user.last_seen).getTime() < 60000) 
+                           ? 'Active Now' 
+                           : match.user.last_seen 
+                             ? `Seen ${new Date(match.user.last_seen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                             : match.user.course || 'Poly Student'}
+                       </p>
+                       <p className="text-xs opacity-50 font-medium truncate italic pr-4">
+                         {match.lastMessage 
+                           ? (match.lastMessage.type === 'sticker' ? 'Sent a sticker' : match.lastMessage.type === 'voice' ? 'Sent a voice note' : match.lastMessage.content)
+                           : 'Tap to start chatting...'}
+                       </p>
                     </div>
 
                     <button className="w-12 h-12 rounded-2xl bg-primary-500/10 text-primary-500 flex items-center justify-center group-hover:bg-primary-500 group-hover:text-white transition-all">
@@ -238,7 +309,9 @@ export default function Matches() {
           ) : (
             <div className="grid grid-cols-2 gap-4 pb-20">
               <AnimatePresence>
-                {likedMe.map((user, idx) => (
+                {likedMe
+                  .filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase()) || (u.course || '').toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map((user, idx) => (
                   <motion.div
                     key={user.id}
                     initial={{ opacity: 0, scale: 0.9, y: 20 }}

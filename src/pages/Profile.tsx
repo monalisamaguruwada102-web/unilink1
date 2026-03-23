@@ -49,23 +49,39 @@ export default function Profile() {
     if (!file || !session) return;
     setUploading(true);
 
-    const path = `${session.user.id}/avatar.${file.name.split('.').pop()}`;
-    const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-    if (error) {
-       console.error('Avatar upload error:', error);
-       alert(`❌ Upload failed: ${error.message}. Make sure you've run the SQL migration for storage buckets.`);
-       setUploading(false);
-       return;
-    }
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `avatar-${Date.now()}.${fileExt}`;
+      const path = `${session.user.id}/${fileName}`;
 
-    const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-      const publicUrl = data.publicUrl + '?t=' + Date.now();
-      setAvatarUrl(publicUrl);
+      // 1. Upload the file
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { cacheControl: '3600', upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // 2. Get the public URL
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+      const publicUrl = data.publicUrl;
       
-      // Persist immediately
-      await supabase.from('users').update({ avatar_url: publicUrl }).eq('id', session.user.id);
+      // 3. Update the user profile
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
+        .eq('id', session.user.id);
+
+      if (updateError) throw updateError;
+
+      setAvatarUrl(publicUrl);
       await fetchProfile(session.user.id);
-    setUploading(false);
+      console.log('Avatar updated successfully:', publicUrl);
+    } catch (err: any) {
+      console.error('Avatar upload error:', err);
+      alert(`❌ Update failed: ${err.message || 'Unknown error'}. Check your internet and storage permissions.`);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const shareLocation = () => {

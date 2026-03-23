@@ -35,7 +35,7 @@ export default function Discover() {
         .neq('id', session.user.id);
 
       if (searchQuery) {
-        query = query.ilike('name', `%${searchQuery}%`);
+        query = query.or(`name.ilike.%${searchQuery}%,course.ilike.%${searchQuery}%,bio.ilike.%${searchQuery}%`);
       }
 
       const { data, error } = await query
@@ -194,21 +194,45 @@ export default function Discover() {
             {currentProfile && (
               <motion.div
                 key={currentProfile.id}
+                drag="x"
+                dragConstraints={{ left: 0, right: 0 }}
+                onDragEnd={(_e, info) => {
+                  if (info.offset.x > 100) handleLike(currentProfile.id);
+                  if (info.offset.x < -100) handlePass();
+                }}
                 initial={{ scale: 0.9, opacity: 0, x: 50, rotate: 5 }}
                 animate={{ scale: 1, opacity: 1, x: 0, rotate: 0 }}
-                exit={{ scale: 0.9, opacity: 0, x: -50, rotate: -5 }}
+                exit={{ x: -500, opacity: 0 }}
                 className={`relative w-full h-full rounded-[3rem] overflow-hidden border-4 border-white/10 ${card}`}
               >
                 {currentProfile.avatar_url ? (
-                  <img src={currentProfile.avatar_url} alt={currentProfile.name} className="w-full h-full object-cover" />
+                  <img src={currentProfile.avatar_url} alt={currentProfile.name} className="w-full h-full object-cover pointer-events-none" />
                 ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-primary-400 to-indigo-500 flex items-center justify-center">
+                  <div className="w-full h-full bg-gradient-to-br from-primary-400 to-indigo-500 flex items-center justify-center pointer-events-none">
                     <span className="text-8xl font-black text-white/30">{currentProfile.name[0]}</span>
                   </div>
                 )}
 
+                {/* Swipe Indicators */}
+                <div className="absolute top-10 left-8 right-8 flex justify-between pointer-events-none z-20">
+                    <motion.div 
+                      style={{ opacity: 0 }}
+                      whileDrag={{ opacity: 1, scale: 1.2 }}
+                      className="px-4 py-2 border-4 border-red-500 text-red-500 font-black rounded-xl uppercase tracking-widest text-2xl -rotate-12"
+                    >
+                      NOPE
+                    </motion.div>
+                    <motion.div 
+                      style={{ opacity: 0 }}
+                      whileDrag={{ opacity: 1, scale: 1.2 }}
+                      className="px-4 py-2 border-4 border-green-500 text-green-500 font-black rounded-xl uppercase tracking-widest text-2xl rotate-12"
+                    >
+                      LIKE
+                    </motion.div>
+                </div>
+
                 {/* Overlay Details */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-90" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-90 pointer-events-none" />
                 
                 <div className="absolute bottom-10 left-8 right-8 text-white">
                   <div className="flex items-center justify-between mb-2">
@@ -217,8 +241,8 @@ export default function Discover() {
                        <div className="w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white animate-pulse" />
                      </div>
                      <button 
-                       onClick={() => setSelectedProfile(currentProfile)}
-                       className="p-3 bg-white/20 backdrop-blur-md rounded-2xl border border-white/20"
+                       onClick={(e) => { e.stopPropagation(); setSelectedProfile(currentProfile); }}
+                       className="p-3 bg-white/20 backdrop-blur-md rounded-2xl border border-white/20 relative z-30"
                      >
                        <Info size={18} />
                      </button>
@@ -240,15 +264,15 @@ export default function Discover() {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 relative z-30">
                     <button 
-                      onClick={handlePass}
+                      onClick={(e) => { e.stopPropagation(); handlePass(); }}
                       className="flex-1 h-16 bg-white/10 backdrop-blur-xl border border-white/20 rounded-[2rem] flex items-center justify-center text-white active:scale-90 transition shadow-xl"
                     >
                       <X size={28} />
                     </button>
                     <button 
-                      onClick={() => handleLike(currentProfile.id)}
+                      onClick={(e) => { e.stopPropagation(); handleLike(currentProfile.id); }}
                       className="flex-[2] h-16 bg-primary-500 rounded-[2rem] flex items-center justify-center text-white active:scale-95 transition shadow-2xl shadow-primary-500/40 relative overflow-hidden group"
                     >
                       <motion.div

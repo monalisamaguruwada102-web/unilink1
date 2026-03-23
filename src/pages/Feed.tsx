@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
-import { Heart, MessageCircle, Image, Send, X, Plus, Lock, MoreHorizontal, Hash, ShieldAlert, Trash2 } from 'lucide-react';
+import { Heart, MessageCircle, Image, Send, X, Plus, Lock, MoreHorizontal, Hash, ShieldAlert, Trash2, Sparkles } from 'lucide-react';
 
 function SkeletonPost({ isDarkMode }: { isDarkMode: boolean }) {
   return (
@@ -199,10 +199,17 @@ export default function Feed() {
             )}
           </button>
           <button
-            onClick={() => setShowCreatePost(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white font-black text-[11px] uppercase tracking-widest rounded-2xl shadow-lg shadow-primary-500/30"
+            onClick={() => {
+              if (profile?.is_premium) {
+                setShowCreatePost(true);
+              } else {
+                alert('💎 Premium Feature: Only premium members can broadcast to campus! Upgrade in profile.');
+              }
+            }}
+            className={`flex items-center gap-2 px-4 py-2 font-black text-[11px] uppercase tracking-widest rounded-2xl shadow-lg transition-all active:scale-95 ${profile?.is_premium ? 'bg-primary-500 text-white shadow-primary-500/30' : 'bg-amber-500 text-white shadow-amber-500/30'}`}
           >
-            <Plus size={14} strokeWidth={3} /> Post
+            {profile?.is_premium ? <Plus size={14} strokeWidth={3} /> : <Sparkles size={14} />} 
+            {profile?.is_premium ? 'Post' : 'Go Premium'}
           </button>
         </div>
       </div>
@@ -284,127 +291,145 @@ export default function Feed() {
       )}
 
       {/* Social Feed Posts */}
-      <div className="space-y-4 px-4 pb-10">
-        {loading ? (
-          <>
-            <SkeletonPost isDarkMode={isDarkMode} />
-            <SkeletonPost isDarkMode={isDarkMode} />
-          </>
-        ) : posts.length === 0 ? (
-          <div className="text-center py-20 opacity-30">
-            <Image size={48} className="mx-auto mb-4" />
-            <p className="font-black text-sm uppercase tracking-widest">Scanning Campus...</p>
-          </div>
-        ) : (
-          <AnimatePresence>
-            {posts.map((post, idx) => (
-              <motion.div
-                key={post.id}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.05 }}
-                className={`rounded-[2.5rem] overflow-hidden border ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}
-              >
-                {/* Post Header */}
-                <div className="flex items-center justify-between px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl overflow-hidden ring-2 ring-primary-500/20">
-                      {post.users?.avatar_url
-                        ? <img src={post.users.avatar_url} className="w-full h-full object-cover" alt="" />
-                        : <div className="w-full h-full bg-primary-100 flex items-center justify-center font-black text-primary-600">{post.users?.name?.[0]}</div>
-                      }
-                    </div>
-                    <div>
-                      <p className="font-black text-sm mb-0.5">{post.users?.name || 'Poly Student'}</p>
-                      <p className="text-[10px] opacity-40 font-bold uppercase tracking-tight">{post.users?.course || 'Campus Resident'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {post.user_id === session?.user.id && (
-                      <button 
-                        onClick={() => handleDeletePost(post.id)}
-                        className={`p-3 rounded-2xl text-red-500 transition ${isDarkMode ? 'bg-red-500/10 hover:bg-red-500 hover:text-white' : 'bg-red-50 hover:bg-red-500 hover:text-white'}`}
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    )}
-                    <button className={`p-3 rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'}`}><MoreHorizontal size={18} /></button>
-                  </div>
-                </div>
-
-                {/* Post Image */}
-                {post.image_url && (
-                  <div className="px-3">
-                     <button 
-                        onClick={() => setViewingImage(post.image_url)}
-                        className="w-full aspect-square rounded-[2rem] overflow-hidden bg-gray-100 dark:bg-gray-800 transition-transform active:scale-[0.98]"
-                     >
-                       <img src={post.image_url} alt="Post" className="w-full h-full object-cover" />
-                     </button>
-                  </div>
-                )}
-
-                {/* Content & Caption */}
-                <div className="p-5">
-                  {post.content && (
-                     <p className="text-sm leading-relaxed mb-5 px-1">
-                       <span className="font-black mr-2 uppercase text-xs text-primary-500">{post.users?.name}</span>
-                       <span className="opacity-80 font-medium">{post.content}</span>
-                     </p>
-                  )}
-
-                  {/* Actions & Stats */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <button 
-                        onClick={() => post.is_liked ? unlikePost(post.id, session?.user.id || '') : likePost(post.id, post.user_id, session?.user.id || '')} 
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl transition ${post.is_liked ? 'bg-primary-500 text-white' : (isDarkMode ? 'bg-primary-500/10 text-primary-500 hover:bg-primary-500 hover:text-white' : 'bg-primary-50 text-primary-600 hover:bg-primary-100')} group`}
-                      >
-                        <Heart size={18} fill={post.is_liked ? "currentColor" : "none"} strokeWidth={post.is_liked ? 0 : 2.5} />
-                        <span className="text-xs font-black">{post.likes || 0}</span>
-                      </button>
-                      <button 
-                        onClick={() => setActiveCommentsPost(post)}
-                        className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition ${isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-50 text-gray-600'}`}
-                      >
-                        <MessageCircle size={18} />
-                        <span className="text-xs font-black">{post.comment_count || 0}</span>
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={async () => { 
-                          const shareData = {
-                            title: 'Poly Link Post',
-                            text: post.content || 'Check out this post on Poly Link!',
-                            url: window.location.origin + '/post/' + post.id
-                          };
-                          if (navigator.share) {
-                            try { await navigator.share(shareData); } catch (err) {}
-                          } else {
-                            navigator.clipboard.writeText(shareData.url);
-                            alert('🔗 Link copied to clipboard!');
-                          }
-                        }}
-                        className={`p-3 rounded-2xl transition ${isDarkMode ? 'bg-gray-800 text-gray-400 hover:text-primary-500' : 'bg-gray-50 text-gray-600 hover:text-primary-600'}`}
-                        title="Share post"
-                      >
-                        <Send size={18} className="-rotate-12" />
-                      </button>
-                      <button 
-                        onClick={() => alert('🔖 Post saved to your campus collection!')}
-                        className={`p-3 rounded-2xl transition ${isDarkMode ? 'bg-gray-800 text-gray-400 hover:text-yellow-500' : 'bg-gray-50 text-gray-600 hover:text-yellow-600'}`}
-                        title="Save to collection"
-                      >
-                        <Lock size={18} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
+      <div className="relative space-y-4 px-4 pb-10">
+        {!profile?.is_premium && (
+           <div className="absolute inset-x-4 top-0 z-10 p-8 rounded-[2.5rem] bg-gradient-to-b from-primary-500/20 to-transparent backdrop-blur-md border border-white/20 text-center space-y-4 overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/20 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+              <Sparkles className="mx-auto text-amber-500" size={40} />
+              <h3 className="text-xl font-black uppercase tracking-tighter">Premium Wall Only</h3>
+              <p className="text-[10px] font-bold opacity-60 leading-relaxed uppercase tracking-widest px-4">
+                Unlock the campus wall and see what everyone is buzzing about! Premium members get full access.
+              </p>
+              <button className="w-full py-4 bg-amber-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-amber-500/40">
+                Upgrade to Premium
+              </button>
+           </div>
         )}
+        
+        <div className={!profile?.is_premium ? 'opacity-20 pointer-events-none blur-sm' : ''}>
+          {loading ? (
+            <>
+              <SkeletonPost isDarkMode={isDarkMode} />
+              <SkeletonPost isDarkMode={isDarkMode} />
+            </>
+          ) : posts.length === 0 ? (
+            <div className="text-center py-20 opacity-30">
+              <Image size={48} className="mx-auto mb-4" />
+              <p className="font-black text-sm uppercase tracking-widest">Scanning Campus...</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <AnimatePresence>
+                {posts.map((post, idx) => (
+                  <motion.div
+                    key={post.id}
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className={`rounded-[2.5rem] overflow-hidden border ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}
+                  >
+                    {/* Post Header */}
+                    <div className="flex items-center justify-between px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-2xl overflow-hidden ring-2 ring-primary-500/20">
+                          {post.users?.avatar_url
+                            ? <img src={post.users.avatar_url} className="w-full h-full object-cover" alt="" />
+                            : <div className="w-full h-full bg-primary-100 flex items-center justify-center font-black text-primary-600">{post.users?.name?.[0]}</div>
+                          }
+                        </div>
+                        <div>
+                          <p className="font-black text-sm mb-0.5">{post.users?.name || 'Poly Student'}</p>
+                          <p className="text-[10px] opacity-40 font-bold uppercase tracking-tight">{post.users?.course || 'Campus Resident'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {post.user_id === session?.user.id && (
+                          <button 
+                            onClick={() => handleDeletePost(post.id)}
+                            className={`p-3 rounded-2xl text-red-500 transition ${isDarkMode ? 'bg-red-500/10 hover:bg-red-500 hover:text-white' : 'bg-red-50 hover:bg-red-500 hover:text-white'}`}
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                        <button className={`p-3 rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'}`}><MoreHorizontal size={18} /></button>
+                      </div>
+                    </div>
+
+                    {/* Post Image */}
+                    {post.image_url && (
+                      <div className="px-3">
+                         <button 
+                            onClick={() => setViewingImage(post.image_url)}
+                            className="w-full aspect-square rounded-[2rem] overflow-hidden bg-gray-100 dark:bg-gray-800 transition-transform active:scale-[0.98]"
+                         >
+                           <img src={post.image_url} alt="Post" className="w-full h-full object-cover" />
+                         </button>
+                      </div>
+                    )}
+
+                    {/* Content & Caption */}
+                    <div className="p-5">
+                      {post.content && (
+                         <p className="text-sm leading-relaxed mb-5 px-1">
+                           <span className="font-black mr-2 uppercase text-xs text-primary-500">{post.users?.name}</span>
+                           <span className="opacity-80 font-medium">{post.content}</span>
+                         </p>
+                      )}
+
+                      {/* Actions & Stats */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <button 
+                            onClick={() => post.is_liked ? unlikePost(post.id, session?.user.id || '') : likePost(post.id, post.user_id, session?.user.id || '')} 
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl transition ${post.is_liked ? 'bg-primary-500 text-white' : (isDarkMode ? 'bg-primary-500/10 text-primary-500 hover:bg-primary-500 hover:text-white' : 'bg-primary-50 text-primary-600 hover:bg-primary-100')} group`}
+                          >
+                            <Heart size={18} fill={post.is_liked ? "currentColor" : "none"} strokeWidth={post.is_liked ? 0 : 2.5} />
+                            <span className="text-xs font-black">{post.likes || 0}</span>
+                          </button>
+                          <button 
+                            onClick={() => setActiveCommentsPost(post)}
+                            className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition ${isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-50 text-gray-600'}`}
+                          >
+                            <MessageCircle size={18} />
+                            <span className="text-xs font-black">{post.comment_count || 0}</span>
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={async () => { 
+                              const shareData = {
+                                title: 'Poly Link Post',
+                                text: post.content || 'Check out this post on Poly Link!',
+                                url: window.location.origin + '/post/' + post.id
+                              };
+                              if (navigator.share) {
+                                try { await navigator.share(shareData); } catch (err) {}
+                              } else {
+                                navigator.clipboard.writeText(shareData.url);
+                                alert('🔗 Link copied to clipboard!');
+                              }
+                            }}
+                            className={`p-3 rounded-2xl transition ${isDarkMode ? 'bg-gray-800 text-gray-400 hover:text-primary-500' : 'bg-gray-50 text-gray-600 hover:text-primary-600'}`}
+                            title="Share post"
+                          >
+                            <Send size={18} className="-rotate-12" />
+                          </button>
+                          <button 
+                            onClick={() => alert('🔖 Post saved to your campus collection!')}
+                            className={`p-3 rounded-2xl transition ${isDarkMode ? 'bg-gray-800 text-gray-400 hover:text-yellow-500' : 'bg-gray-50 text-gray-600 hover:text-yellow-600'}`}
+                            title="Save to collection"
+                          >
+                            <Lock size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 🎬 STORY VIEWER MODAL */}

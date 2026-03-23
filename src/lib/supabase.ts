@@ -15,6 +15,9 @@ export type UserProfile = {
   college: string | null;
   course: string | null;
   avatar_url: string | null;
+  is_premium?: boolean;
+  is_verified?: boolean;
+  last_seen?: string | null;
   latitude?: number | null;
   longitude?: number | null;
   interests?: string[] | null;

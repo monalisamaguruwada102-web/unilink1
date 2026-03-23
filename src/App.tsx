@@ -45,10 +45,23 @@ export default function App() {
       (window as any).deferredPrompt = e;
     });
 
+    // Online Status Heartbeat
+    let heartbeatInterval: any;
+    if (session?.user?.id) {
+       // Update once immediately
+       supabase.from('users').update({ last_seen: new Date().toISOString() }).eq('id', session.user.id);
+       
+       // Then every 30 seconds
+       heartbeatInterval = setInterval(() => {
+         supabase.from('users').update({ last_seen: new Date().toISOString() }).eq('id', session.user.id);
+       }, 30000);
+    }
+
     return () => {
       subscription.unsubscribe();
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
     };
-  }, [setSession, fetchProfile]);
+  }, [setSession, fetchProfile, session]);
 
   if (loading) {
     return (
