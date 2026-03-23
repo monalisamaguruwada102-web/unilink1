@@ -41,19 +41,15 @@ interface CourseGroup {
   users?: { name: string; avatar_url: string };
 }
 
-interface Job {
+interface CourseGroup {
   id: string;
-  title: string;
-  company: string;
-  type: string;
-  salary: string;
-}
-
-interface CampusAlert {
-  id: string;
-  type: string;
-  status: string;
-  time: string;
+  name: string;
+  course: string;
+  description: string;
+  created_by: string;
+  created_at: string;
+  member_count?: number;
+  users?: { name: string; avatar_url: string };
 }
 
 interface Post {
@@ -97,8 +93,6 @@ interface FeatureState {
   events: Event[];
   currentPoll: Poll | null;
   courseGroups: CourseGroup[];
-  jobs: Job[];
-  campusAlerts: CampusAlert[];
   confessions: Confession[];
   notifications: any[];
   postLikes: PostLike[];
@@ -117,7 +111,7 @@ interface FeatureState {
   joinEvent: (eventId: string) => Promise<void>;
   addStory: (userId: string, userName: string, imageUrl: string) => Promise<void>;
   viewStory: (storyId: string, userId: string) => Promise<void>;
-  reactToStory: (storyId: string, userId: string, emoji: string) => Promise<void>;
+  reactToStory: (storyId: string, ownerId: string, userId: string, emoji: string) => Promise<void>;
   
   addPost: (post: any) => void;
   likePost: (postId: string, postOwnerId: string, likerId: string) => Promise<void>;
@@ -149,8 +143,6 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   events: [],
   currentPoll: null,
   courseGroups: [],
-  jobs: [],
-  campusAlerts: [],
   confessions: [],
   notifications: [],
   postLikes: [],
@@ -206,8 +198,16 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     }));
   },
 
-  reactToStory: async (storyId, userId, emoji) => {
+  reactToStory: async (storyId, ownerId, userId, emoji) => {
     await supabase.from('story_reactions').insert({ story_id: storyId, user_id: userId, emoji });
+    if (ownerId !== userId) {
+      await supabase.from('notifications').insert({
+        user_id: ownerId,
+        sender_id: userId,
+        type: 'reaction',
+        content: `reacted to your story with ${emoji}`
+      });
+    }
   },
 
   markNotificationsRead: async (userId: string) => {
@@ -303,31 +303,25 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
 
   fetchFeatures: async () => {
     const [
-      { data: alerts },
       { data: groupsList },
-      { data: jobList },
-      { data: eventList },
       { data: confessionList },
       { data: storyList },
       { data: postList },
-      { data: myPostLikes }
+      { data: myPostLikes },
+      { data: notifyList }
     ] = await Promise.all([
-      supabase.from('alerts').select('*').order('created_at', { ascending: false }),
       supabase.from('course_groups').select('*, users!course_groups_created_by_fkey(name, avatar_url), group_members(count)').order('created_at', { ascending: false }).limit(20),
-      supabase.from('jobs').select('*').limit(10),
-      supabase.from('events').select('*'),
       supabase.from('confessions').select('*').order('created_at', { ascending: false }).limit(10),
-      supabase.from('stories').select('*, users(name, avatar_url)').order('created_at', { ascending: false }),
+      supabase.from('stories').select('*, users(id, name, avatar_url)').order('created_at', { ascending: false }),
       supabase.from('posts').select('*, users(name, avatar_url, course), post_comments(count)').order('created_at', { ascending: false }).limit(25),
-      supabase.from('post_likes').select('post_id, user_id')
+      supabase.from('post_likes').select('post_id, user_id'),
+      supabase.from('notifications').select('*, users:users!notifications_sender_id_fkey(name, avatar_url)').order('created_at', { ascending: false }).limit(20)
     ]);
 
-    if (alerts) set({ campusAlerts: alerts });
     if (groupsList) set({ courseGroups: groupsList.map((g: any) => ({ ...g, member_count: g.group_members?.[0]?.count || 0 })) });
-    if (jobList) set({ jobs: jobList });
-    if (eventList) set({ events: eventList });
     if (confessionList) set({ confessions: confessionList });
     if (myPostLikes) set({ postLikes: myPostLikes });
+    if (notifyList) set({ notifications: notifyList });
     
     if (postList) {
       const myId = (await supabase.auth.getSession()).data.session?.user.id;
@@ -344,8 +338,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
           user_name: s.users?.name || 'Poly Student',
           is_viewed: false
        }))});
-    }
- else {
+    } else {
        set({ stories: [
          { id: '1', user_id: '1', user_name: 'Nyasha', image_url: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&h=200&fit=crop', is_viewed: false, expires_at: '' },
          { id: '2', user_id: '2', user_name: 'Tinashe', image_url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop', is_viewed: false, expires_at: '' }
@@ -408,18 +401,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
           }));
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'alerts' }, (payload) => {
-        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          set((state) => ({ 
-            campusAlerts: state.campusAlerts.some(a => a.id === payload.new.id)
-              ? state.campusAlerts.map(a => a.id === payload.new.id ? payload.new as CampusAlert : a)
-              : [payload.new as CampusAlert, ...state.campusAlerts] 
-          }));
-        } else if (payload.eventType === 'DELETE') {
-          set((state) => ({ campusAlerts: state.campusAlerts.filter(a => a.id === payload.old.id) }));
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'course_groups' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'course_groups' }, (payload: any) => {
         if (payload.eventType === 'INSERT') {
           set((state) => ({ 
             courseGroups: state.courseGroups.some(i => i.id === payload.new.id)
