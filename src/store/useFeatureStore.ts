@@ -30,12 +30,14 @@ interface Poll {
   options: PollOption[];
 }
 
-interface MarketplaceItem {
+interface CourseGroup {
   id: string;
-  title: string;
-  price: string;
-  category: string;
-  image_url: string;
+  name: string;
+  course: string;
+  description: string;
+  created_by: string;
+  created_at: string;
+  users?: { name: string; avatar_url: string };
 }
 
 interface Job {
@@ -93,7 +95,7 @@ interface FeatureState {
   posts: Post[];
   events: Event[];
   currentPoll: Poll | null;
-  marketplaceItems: MarketplaceItem[];
+  courseGroups: CourseGroup[];
   jobs: Job[];
   campusAlerts: CampusAlert[];
   confessions: Confession[];
@@ -122,6 +124,8 @@ interface FeatureState {
   fetchComments: (postId: string) => Promise<any[]>;
   addComment: (postId: string, userId: string, postOwnerId: string, content: string) => Promise<void>;
   
+  createGroup: (name: string, course: string, description: string) => Promise<void>;
+
   fetchFeatures: () => Promise<void>;
   updateUserProfile: (userId: string, updates: any) => Promise<void>;
   markNotificationsRead: (userId: string) => Promise<void>;
@@ -143,7 +147,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   posts: [],
   events: [],
   currentPoll: null,
-  marketplaceItems: [],
+  courseGroups: [],
   jobs: [],
   campusAlerts: [],
   confessions: [],
@@ -288,10 +292,17 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     }
   },
 
+  createGroup: async (name, course, description) => {
+    const myId = (await supabase.auth.getSession()).data.session?.user.id;
+    if (!myId) return;
+    const { data } = await supabase.from('course_groups').insert({ name, course, description, created_by: myId }).select().single();
+    if (data) set(state => ({ courseGroups: [data, ...state.courseGroups] }));
+  },
+
   fetchFeatures: async () => {
     const [
       { data: alerts },
-      { data: items },
+      { data: groupsList },
       { data: jobList },
       { data: eventList },
       { data: confessionList },
@@ -300,17 +311,17 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       { data: myPostLikes }
     ] = await Promise.all([
       supabase.from('alerts').select('*').order('created_at', { ascending: false }),
-      supabase.from('marketplace').select('*').limit(6),
+      supabase.from('course_groups').select('*, users!course_groups_created_by_fkey(name, avatar_url)').order('created_at', { ascending: false }).limit(20),
       supabase.from('jobs').select('*').limit(10),
       supabase.from('events').select('*'),
       supabase.from('confessions').select('*').order('created_at', { ascending: false }).limit(10),
       supabase.from('stories').select('*, users(name, avatar_url)').order('created_at', { ascending: false }),
-      supabase.from('posts').select('*, users(name, avatar_url, course), post_comments(count)').order('created_at', { ascending: false }),
+      supabase.from('posts').select('*, users(name, avatar_url, course), post_comments(count)').order('created_at', { ascending: false }).limit(25),
       supabase.from('post_likes').select('post_id, user_id')
     ]);
 
     if (alerts) set({ campusAlerts: alerts });
-    if (items) set({ marketplaceItems: items });
+    if (groupsList) set({ courseGroups: groupsList });
     if (jobList) set({ jobs: jobList });
     if (eventList) set({ events: eventList });
     if (confessionList) set({ confessions: confessionList });
@@ -406,15 +417,15 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
           set((state) => ({ campusAlerts: state.campusAlerts.filter(a => a.id === payload.old.id) }));
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'marketplace' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'course_groups' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           set((state) => ({ 
-            marketplaceItems: state.marketplaceItems.some(i => i.id === payload.new.id)
-              ? state.marketplaceItems
-              : [payload.new as MarketplaceItem, ...state.marketplaceItems] 
+            courseGroups: state.courseGroups.some(i => i.id === payload.new.id)
+              ? state.courseGroups
+              : [{ ...payload.new, users: { name: 'Unknown', avatar_url: '' } } as CourseGroup, ...state.courseGroups] 
           }));
         } else if (payload.eventType === 'DELETE') {
-          set((state) => ({ marketplaceItems: state.marketplaceItems.filter(i => i.id === payload.old.id) }));
+          set((state) => ({ courseGroups: state.courseGroups.filter(i => i.id !== payload.old.id) }));
         }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {

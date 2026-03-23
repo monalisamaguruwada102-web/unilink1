@@ -263,10 +263,14 @@ export default function Feed() {
           <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3 px-1 flex items-center gap-2">
             <Hash size={14} className="text-pink-500" /> Latest Secrets
           </p>
-          <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-2">
+          <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-4">
             {confessions.slice(0, 8).map((c, i) => (
-              <div key={c.id || i} className={`flex-shrink-0 w-72 p-5 rounded-[2rem] border ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
-                <p className="text-sm italic font-medium opacity-80 leading-relaxed line-clamp-3">"{c.content}"</p>
+              <motion.div 
+                key={c.id || i}
+                whileHover={{ y: -4 }}
+                className={`flex-shrink-0 w-72 p-6 rounded-[2.5rem] border ${isDarkMode ? 'bg-gray-900 border-gray-800 shadow-lg shadow-black/20' : 'bg-white border-pink-100 shadow-xl shadow-pink-500/5'}`}
+              >
+                <p className="text-[13px] italic font-medium opacity-90 leading-relaxed line-clamp-3">"{c.content}"</p>
                 <div className="flex items-center justify-between mt-4">
                   <p className="text-[9px] font-black opacity-30 uppercase tracking-widest">
                     {c.created_at ? new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
@@ -277,14 +281,14 @@ export default function Feed() {
                     <div className="w-1.5 h-1.5 rounded-full bg-pink-500 opacity-60" />
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
       )}
 
       {/* Social Feed Posts */}
-      <div className="relative space-y-4 px-4 pb-10">
+      <div className="relative space-y-6 px-4 pb-10">
         <div className="">
           {loading ? (
             <>
@@ -305,12 +309,12 @@ export default function Feed() {
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.05 }}
-                    className={`rounded-[2.5rem] overflow-hidden border ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}
+                    className={`rounded-[3rem] overflow-hidden border ${isDarkMode ? 'bg-gray-900 border-gray-800 shadow-2xl shadow-black/40' : 'bg-white border-gray-100 shadow-2xl shadow-gray-200/50'}`}
                   >
                     {/* Post Header */}
-                    <div className="flex items-center justify-between px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-2xl overflow-hidden ring-2 ring-primary-500/20">
+                    <div className="flex items-center justify-between px-6 py-5">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl overflow-hidden ring-2 ring-primary-500/20 bg-primary-50 dark:bg-gray-800">
                           {post.users?.avatar_url
                             ? <img src={post.users.avatar_url} className="w-full h-full object-cover" alt="" />
                             : <div className="w-full h-full bg-primary-100 flex items-center justify-center font-black text-primary-600">{post.users?.name?.[0]}</div>
@@ -347,11 +351,11 @@ export default function Feed() {
                     )}
 
                     {/* Content & Caption */}
-                    <div className="p-5">
+                    <div className="p-6 pt-2">
                       {post.content && (
-                         <p className="text-sm leading-relaxed mb-5 px-1">
+                         <p className="text-[15px] leading-relaxed mb-6 px-1">
                            <span className="font-black mr-2 uppercase text-xs text-primary-500">{post.users?.name}</span>
-                           <span className="opacity-80 font-medium">{post.content}</span>
+                           <span className="opacity-90 font-medium">{post.content}</span>
                          </p>
                       )}
 

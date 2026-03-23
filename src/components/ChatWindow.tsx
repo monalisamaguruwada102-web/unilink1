@@ -34,6 +34,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   const [isRecording, setIsRecording] = useState(false);
   const { session } = useAuthStore();
   const { isDarkMode } = useFeatureStore();
+  const [showMenu, setShowMenu] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -129,9 +130,42 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
             <p className="text-[10px] font-bold text-green-500 uppercase tracking-widest leading-none mt-0.5">Online</p>
           </div>
         </div>
-        <button className="p-2 opacity-40">
-          <MoreVertical size={20} />
-        </button>
+        <div className="relative">
+          <button onClick={() => setShowMenu(!showMenu)} className="p-2 opacity-40 hover:opacity-100 transition">
+            <MoreVertical size={20} />
+          </button>
+
+          <AnimatePresence>
+            {showMenu && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                className={`absolute right-0 top-full mt-2 w-48 rounded-2xl shadow-xl border overflow-hidden z-50 ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'}`}
+              >
+                <button 
+                  onClick={() => { setShowMenu(false); alert('👤 View Profile: ' + otherUser.name); }}
+                  className={`w-full text-left px-5 py-3 text-sm font-bold transition hover:bg-primary-500/10 hover:text-primary-500`}
+                >
+                  View Profile
+                </button>
+                <div className={`h-px w-full ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`} />
+                <button 
+                  onClick={() => { setShowMenu(false); if(confirm('Clear all messages in this chat?')) { setMessages([]); alert('Messages cleared locally.'); } }}
+                  className={`w-full text-left px-5 py-3 text-sm font-bold transition hover:bg-yellow-500/10 hover:text-yellow-600`}
+                >
+                  Clear Chat
+                </button>
+                <button 
+                  onClick={() => { setShowMenu(false); if(confirm(`Block ${otherUser.name}? You won't see them anymore.`)) alert('User blocked.'); }}
+                  className={`w-full text-left px-5 py-3 text-sm font-bold transition hover:bg-red-500/10 hover:text-red-500`}
+                >
+                  Block & Report
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 pt-24 pb-20 space-y-4 hide-scrollbar">

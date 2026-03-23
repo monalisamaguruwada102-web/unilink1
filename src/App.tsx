@@ -15,6 +15,7 @@ import CommunityHub from './pages/CommunityHub';
 import Matches from './pages/Matches';
 import Chat from './pages/Chat';
 import Profile from './pages/Profile';
+import GroupChat from './pages/GroupChat';
 
 export default function App() {
   const { session, setSession, fetchProfile, loading } = useAuthStore();
@@ -89,7 +90,7 @@ export default function App() {
 
 function AppLayout({ isDarkMode }: { isDarkMode: boolean }) {
   const location = useLocation();
-  const isChat = location.pathname.startsWith('/chat/');
+  const isChat = location.pathname.startsWith('/chat/') || location.pathname.startsWith('/groups/');
 
   return (
     <div className={`min-h-screen w-full font-sans transition-colors duration-300 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}>
@@ -99,6 +100,7 @@ function AppLayout({ isDarkMode }: { isDarkMode: boolean }) {
         <Route path="/community" element={<CommunityHub />} />
         <Route path="/matches" element={<Matches />} />
         <Route path="/chat/:matchId" element={<Chat />} />
+        <Route path="/groups/:groupId" element={<GroupChat />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

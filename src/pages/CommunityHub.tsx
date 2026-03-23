@@ -1,64 +1,35 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useFeatureStore } from '../store/useFeatureStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { ShoppingBag, Briefcase, Wrench, Car, AlertTriangle, ChevronRight, Bell, Plus, X, Package, Image as ImageIcon } from 'lucide-react';
+import { Briefcase, Wrench, Car, AlertTriangle, ChevronRight, Bell, Plus, X, Package } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 
-type Tab = 'all' | 'market' | 'jobs' | 'services';
-type Modal = 'item' | 'job' | null;
+type Tab = 'all' | 'groups' | 'jobs' | 'services';
+type Modal = 'group' | 'job' | null;
 
 export default function CommunityHub() {
-  const { isDarkMode, marketplaceItems, jobs, campusAlerts } = useFeatureStore();
-  const { profile, session } = useAuthStore();
+  const { isDarkMode, courseGroups, jobs, campusAlerts, createGroup } = useFeatureStore();
+  const { session } = useAuthStore();
   const [activeTab, setActiveTab] = useState<Tab>('all');
   const [modal, setModal] = useState<Modal>(null);
-  const [form, setForm] = useState({ title: '', price: '', category: 'Books', company: '', type: 'Part-time', salary: '' });
-  const [image, setImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState('');
+  const [form, setForm] = useState({ title: '', price: '', category: 'Books', company: '', type: 'Part-time', salary: '', groupName: '', groupCourse: '', groupDescription: '' });
   const [posting, setPosting] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
   const tabs = [
     { id: 'all', label: 'All', icon: Bell },
-    { id: 'market', label: 'Market', icon: ShoppingBag },
+    { id: 'groups', label: 'Groups', icon: Briefcase },
     { id: 'jobs', label: 'Jobs', icon: Briefcase },
     { id: 'services', label: 'Services', icon: Wrench },
   ];
 
-  const handleImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImage(file);
-      setImagePreview(URL.createObjectURL(file));
-    }
-  };
-
-  const handlePostItem = async () => {
-    if (!form.title || !form.price || !session) return;
+  const handleCreateGroup = async () => {
+    if (!form.groupName || !form.groupCourse || !session) return;
     setPosting(true);
-
-    let imageUrl = '';
-    if (image) {
-      const path = `${session.user.id}/market_${Date.now()}.${image.name.split('.').pop()}`;
-      const { error: uploadErr } = await supabase.storage.from('post-images').upload(path, image);
-      if (!uploadErr) {
-        const { data } = supabase.storage.from('post-images').getPublicUrl(path);
-        imageUrl = data.publicUrl;
-      }
-    }
-
-    await supabase.from('marketplace').insert({
-      title: form.title,
-      price: form.price,
-      category: form.category,
-      image_url: imageUrl || null,
-      user_id: profile?.id,
-    });
-
-    setForm({ title: '', price: '', category: 'Books', company: '', type: 'Part-time', salary: '' });
-    setImage(null);
-    setImagePreview('');
+    await createGroup(form.groupName, form.groupCourse, form.groupDescription);
+    setForm({ ...form, groupName: '', groupCourse: '', groupDescription: '' });
     setModal(null);
     setPosting(false);
   };
@@ -72,7 +43,7 @@ export default function CommunityHub() {
       type: form.type,
       salary: form.salary,
     });
-    setForm({ title: '', price: '', category: 'Books', company: '', type: 'Part-time', salary: '' });
+    setForm({ ...form, title: '', company: '', type: 'Part-time', salary: '' });
     setModal(null);
     setPosting(false);
   };
@@ -87,7 +58,7 @@ export default function CommunityHub() {
         </div>
         <motion.button
           whileTap={{ scale: 0.9 }}
-          onClick={() => setModal('item')}
+          onClick={() => setModal('group')}
           className="w-12 h-12 rounded-2xl bg-primary-500 text-white flex items-center justify-center shadow-lg shadow-primary-500/30"
         >
           <Plus size={24} />
@@ -151,50 +122,47 @@ export default function CommunityHub() {
       </div>
 
       <div className="space-y-10">
-        {/* Marketplace */}
-        {(activeTab === 'all' || activeTab === 'market') && (
+        {/* Groups */}
+        {(activeTab === 'all' || activeTab === 'groups') && (
           <div className="space-y-6">
             <div className="flex justify-between items-center px-4">
-              <h3 className="text-[11px] font-black uppercase tracking-[0.2em] opacity-40">Student Marketplace</h3>
+              <h3 className="text-[11px] font-black uppercase tracking-[0.2em] opacity-40">Course Groups</h3>
               <button
-                onClick={() => setModal('item')}
+                onClick={() => setModal('group')}
                 className="text-[9px] font-black text-primary-500 flex items-center gap-1 uppercase tracking-widest"
               >
-                <Plus size={12} /> Sell Item
+                <Plus size={12} /> New Group
               </button>
             </div>
-            {marketplaceItems.length === 0 ? (
+            {courseGroups.length === 0 ? (
               <div
-                onClick={() => setModal('item')}
+                onClick={() => setModal('group')}
                 className={`p-12 rounded-[3.5rem] border-2 border-dashed text-center cursor-pointer transition hover:border-primary-500/40 ${isDarkMode ? 'border-gray-800 text-gray-600 bg-gray-900/40' : 'border-gray-200 text-gray-400 bg-gray-50/50'}`}
               >
                 <Package size={36} className="mx-auto mb-4 opacity-30" />
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">Be the first to list an item!</p>
-                <p className="text-[8px] font-bold opacity-30 uppercase tracking-tight">Books, Gadgets, Clothes & more</p>
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">No Groups created yet!</p>
+                <p className="text-[8px] font-bold opacity-30 uppercase tracking-tight">Create a space for your course mates</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-5">
-                {marketplaceItems.map(item => (
+              <div className="space-y-4 px-2">
+                {courseGroups.map(group => (
                   <motion.div
-                    key={item.id}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    whileHover={{ y: -5 }}
-                    className={`p-5 rounded-[2.5rem] border flex flex-col transition-all group ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-white shadow-xl shadow-gray-200/40'}`}
+                    key={group.id}
+                    onClick={() => navigate(`/groups/${group.id}`)}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className={`p-6 rounded-[2.5rem] border flex items-center justify-between cursor-pointer transition-all group-hover ${isDarkMode ? 'bg-gray-900 border-gray-800 hover:bg-gray-800' : 'bg-white border-gray-100 hover:bg-gray-50 shadow-sm'}`}
                   >
-                    <div className="aspect-square bg-gray-50 dark:bg-gray-800/50 rounded-3xl mb-4 flex items-center justify-center relative overflow-hidden">
-                      {item.image_url ? (
-                        <img src={item.image_url} alt={item.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <ShoppingBag size={40} className="text-primary-500 opacity-20" />
-                      )}
-                      <div className="absolute inset-0 bg-primary-500/5 opacity-0 group-hover:opacity-100 transition" />
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center shrink-0">
+                        <Briefcase size={24} />
+                      </div>
+                      <div>
+                        <p className="font-black text-sm mb-0.5">{group.name}</p>
+                        <p className="text-[10px] opacity-40 font-bold uppercase tracking-widest">{group.course}</p>
+                      </div>
                     </div>
-                    <div className="px-1">
-                      <p className="text-[9px] font-black uppercase tracking-widest mb-1 text-primary-500 opacity-80">{item.category}</p>
-                      <p className="text-[11px] font-black leading-tight line-clamp-1">{item.title}</p>
-                      <p className="text-lg font-black mt-3 tracking-tighter text-indigo-600">{item.price}</p>
-                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
                   </motion.div>
                 ))}
               </div>
@@ -279,57 +247,40 @@ export default function CommunityHub() {
             >
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-xl font-black uppercase tracking-tighter">
-                  {modal === 'item' ? '📦 Sell an Item' : '💼 Post a Job'}
+                  {modal === 'group' ? '🏫 Create a Group' : '💼 Post a Job'}
                 </h2>
                 <button onClick={() => setModal(null)} className={`p-2 rounded-full ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
                   <X size={20} />
                 </button>
               </div>
 
-              {modal === 'item' ? (
+              {modal === 'group' ? (
                 <>
-                  <div className="flex justify-center">
-                    <button 
-                      onClick={() => fileRef.current?.click()}
-                      className={`w-32 h-32 rounded-[2rem] border-2 border-dashed flex items-center justify-center overflow-hidden transition ${isDarkMode ? 'border-gray-700 hover:border-primary-500' : 'border-gray-200 hover:border-primary-500'}`}
-                    >
-                      {imagePreview ? (
-                        <img src={imagePreview} className="w-full h-full object-cover" alt="" />
-                      ) : (
-                        <div className="text-center">
-                          <ImageIcon size={24} className="mx-auto mb-2 opacity-30" />
-                          <p className="text-[8px] font-black uppercase tracking-widest opacity-40">Add Photo</p>
-                        </div>
-                      )}
-                    </button>
-                    <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImagePick} />
-                  </div>
-
                   <input
-                    placeholder="Item title (e.g. Calculus Textbook)"
-                    value={form.title}
-                    onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                    placeholder="Group Name (e.g. CS101 Squad)"
+                    value={form.groupName}
+                    onChange={e => setForm(f => ({ ...f, groupName: e.target.value }))}
                     className={`w-full px-6 py-5 rounded-3xl text-sm font-bold border outline-none focus:ring-2 ring-primary-500 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}
                   />
                   <input
-                    placeholder="Price (e.g. $5)"
-                    value={form.price}
-                    onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
+                    placeholder="Course/Topic"
+                    value={form.groupCourse}
+                    onChange={e => setForm(f => ({ ...f, groupCourse: e.target.value }))}
                     className={`w-full px-6 py-5 rounded-3xl text-sm font-bold border outline-none focus:ring-2 ring-primary-500 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}
                   />
-                  <select
-                    value={form.category}
-                    onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                    className={`w-full px-6 py-5 rounded-3xl text-sm font-bold border outline-none ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}
-                  >
-                    {['Books', 'Appliances', 'Clothing', 'Electronics', 'Other'].map(c => <option key={c}>{c}</option>)}
-                  </select>
+                  <textarea
+                    placeholder="Description"
+                    value={form.groupDescription}
+                    onChange={e => setForm(f => ({ ...f, groupDescription: e.target.value }))}
+                    rows={3}
+                    className={`w-full px-6 py-5 rounded-3xl text-sm font-bold border outline-none focus:ring-2 ring-primary-500 resize-none ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}
+                  />
                   <button
-                    onClick={handlePostItem}
-                    disabled={posting || !form.title || !form.price}
+                    onClick={handleCreateGroup}
+                    disabled={posting || !form.groupName || !form.groupCourse}
                     className="w-full py-5 bg-primary-500 text-white rounded-3xl font-black uppercase tracking-widest disabled:opacity-50 shadow-xl shadow-primary-500/30"
                   >
-                    {posting ? 'Posting...' : 'List Item Now'}
+                    {posting ? 'Creating...' : 'Create Group'}
                   </button>
                 </>
               ) : (
