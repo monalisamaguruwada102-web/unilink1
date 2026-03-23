@@ -82,6 +82,15 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
       content,
       type,
     });
+
+    // Notify the other user of the message
+    await supabase.from('notifications').insert({
+      user_id: otherUser.id,
+      sender_id: session.user.id,
+      type: 'message',
+      content: content.length > 30 ? content.slice(0, 30) + '...' : content,
+      post_id: matchId // We use post_id as a reference to the match_id here for notifications
+    });
   };
 
   return (

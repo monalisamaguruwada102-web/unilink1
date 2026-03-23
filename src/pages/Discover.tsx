@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, X, MapPin, Search, Sparkles, MessageCircle, Info, User, GraduationCap, XCircle } from 'lucide-react';
+import { Heart, X, MapPin, Search, MessageCircle, Info, User, GraduationCap, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Discover() {
@@ -232,7 +232,9 @@ export default function Discover() {
                     <div className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2">
                        <MapPin size={10} className="text-primary-400" />
                        <span className="text-[10px] font-black uppercase tracking-widest">
-                         {calculateDistance(myProfile?.latitude, myProfile?.longitude, currentProfile.latitude, currentProfile.longitude) || 'Nearby'} km away
+                         { (myProfile?.latitude && myProfile?.longitude && currentProfile?.latitude && currentProfile?.longitude) 
+                           ? `${calculateDistance(myProfile.latitude, myProfile.longitude, currentProfile.latitude, currentProfile.longitude)} km away`
+                           : 'Nearby campus'}
                        </span>
                     </div>
                   </div>
