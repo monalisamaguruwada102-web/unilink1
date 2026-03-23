@@ -5,7 +5,6 @@ import {
   Users, MessageSquare, ShieldAlert, Trash2, 
   RefreshCw, UserX, ShieldCheck
 } from 'lucide-react';
-import { motion } from 'framer-motion';
 
 export default function Admin() {
   const [stats, setStats] = useState({ users: 0, posts: 0, reports: 0 });

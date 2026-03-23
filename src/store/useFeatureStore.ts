@@ -461,10 +461,6 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
         console.log('⚡ Connected to Kwekwe Poly Realtime Social Network feed!');
       }
     });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   },
 
   updateUserProfile: async (userId, updates) => {
