@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
-import { LogOut, Save, Camera, MapPin, GraduationCap, User, Download } from 'lucide-react';
+import { LogOut, Save, Camera, MapPin, GraduationCap, User, Download, Radio } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const KWEKWE_POLY_DEPARTMENTS = [
@@ -24,7 +24,8 @@ export default function Profile() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [locationLive, setLocationLive] = useState(false);
+  const [locationWatchId, setLocationWatchId] = useState<number | null>(null);
   const [canInstall, setCanInstall] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -86,20 +87,33 @@ export default function Profile() {
     }
   };
 
-  const shareLocation = () => {
-    if (!navigator.geolocation) return;
-    setLocationStatus('loading');
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        if (!session) return;
-        await supabase.from('users').update({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude
-        }).eq('id', session.user.id);
-        setLocationStatus('done');
-      },
-      () => setLocationStatus('error')
-    );
+  const toggleLocation = () => {
+    if (locationLive) {
+      // Stop tracking
+      if (locationWatchId !== null) navigator.geolocation.clearWatch(locationWatchId);
+      setLocationWatchId(null);
+      setLocationLive(false);
+      // Clear from DB
+      if (session) {
+        supabase.from('users').update({ latitude: null, longitude: null, location_updated_at: null }).eq('id', session.user.id);
+      }
+    } else {
+      if (!navigator.geolocation) { alert('Geolocation not supported'); return; }
+      const watchId = navigator.geolocation.watchPosition(
+        async (pos) => {
+          if (!session) return;
+          await supabase.from('users').update({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            location_updated_at: new Date().toISOString(),
+          }).eq('id', session.user.id);
+        },
+        () => { setLocationLive(false); alert('Location access denied. Please enable in browser settings.'); },
+        { enableHighAccuracy: true, maximumAge: 30000 }
+      );
+      setLocationWatchId(watchId);
+      setLocationLive(true);
+    }
   };
 
   const saveProfile = async (e: React.FormEvent) => {
@@ -257,22 +271,29 @@ export default function Profile() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest opacity-40 flex items-center gap-2 mb-1">
-                <MapPin size={12} /> Location
+                <MapPin size={12} /> Live Location
               </p>
               <p className="text-sm font-bold">
-                {locationStatus === 'done' ? '✅ Location shared!' :
-                  locationStatus === 'error' ? '❌ Location access denied' :
-                  locationStatus === 'loading' ? 'Getting your location...' :
-                  'Share your location to show proximity to others'}
+                {locationLive
+                  ? '📡 Broadcasting live location to matches'
+                  : 'Share live location so matches can find you'}
               </p>
+              {locationLive && (
+                <p className="text-[9px] opacity-40 font-bold mt-1 uppercase tracking-widest">Updates every 30s automatically</p>
+              )}
             </div>
             <button
               type="button"
-              onClick={shareLocation}
-              disabled={locationStatus === 'loading' || locationStatus === 'done'}
-              className={`px-4 py-2 rounded-2xl font-black text-[11px] uppercase tracking-widest transition ${locationStatus === 'done' ? 'bg-green-500/20 text-green-500' : 'bg-primary-500 text-white shadow-lg shadow-primary-500/30'}`}
+              onClick={toggleLocation}
+              className={`w-16 h-9 rounded-full transition-all duration-300 relative flex-shrink-0 ml-4 ${
+                locationLive ? 'bg-green-500 shadow-lg shadow-green-500/40' : isDarkMode ? 'bg-gray-700' : 'bg-gray-300'
+              }`}
             >
-              {locationStatus === 'loading' ? '...' : locationStatus === 'done' ? 'On! ✓' : 'Share'}
+              <div className={`absolute top-1 w-7 h-7 bg-white rounded-full shadow-md transition-all duration-300 flex items-center justify-center ${
+                locationLive ? 'left-8' : 'left-1'
+              }`}>
+                <Radio size={12} className={locationLive ? 'text-green-500' : 'text-gray-400'} />
+              </div>
             </button>
           </div>
         </div>

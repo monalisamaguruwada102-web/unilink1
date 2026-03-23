@@ -37,6 +37,7 @@ interface CourseGroup {
   description: string;
   created_by: string;
   created_at: string;
+  member_count?: number;
   users?: { name: string; avatar_url: string };
 }
 
@@ -124,7 +125,7 @@ interface FeatureState {
   fetchComments: (postId: string) => Promise<any[]>;
   addComment: (postId: string, userId: string, postOwnerId: string, content: string) => Promise<void>;
   
-  createGroup: (name: string, course: string, description: string) => Promise<void>;
+  createGroup: (name: string, course: string, description: string) => Promise<CourseGroup | null>;
 
   fetchFeatures: () => Promise<void>;
   updateUserProfile: (userId: string, updates: any) => Promise<void>;
@@ -294,9 +295,10 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
 
   createGroup: async (name, course, description) => {
     const myId = (await supabase.auth.getSession()).data.session?.user.id;
-    if (!myId) return;
+    if (!myId) return null;
     const { data } = await supabase.from('course_groups').insert({ name, course, description, created_by: myId }).select().single();
-    if (data) set(state => ({ courseGroups: [data, ...state.courseGroups] }));
+    if (data) set(state => ({ courseGroups: [{ ...data, member_count: 1 }, ...state.courseGroups] }));
+    return data || null;
   },
 
   fetchFeatures: async () => {
@@ -311,7 +313,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       { data: myPostLikes }
     ] = await Promise.all([
       supabase.from('alerts').select('*').order('created_at', { ascending: false }),
-      supabase.from('course_groups').select('*, users!course_groups_created_by_fkey(name, avatar_url)').order('created_at', { ascending: false }).limit(20),
+      supabase.from('course_groups').select('*, users!course_groups_created_by_fkey(name, avatar_url), group_members(count)').order('created_at', { ascending: false }).limit(20),
       supabase.from('jobs').select('*').limit(10),
       supabase.from('events').select('*'),
       supabase.from('confessions').select('*').order('created_at', { ascending: false }).limit(10),
@@ -321,7 +323,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     ]);
 
     if (alerts) set({ campusAlerts: alerts });
-    if (groupsList) set({ courseGroups: groupsList });
+    if (groupsList) set({ courseGroups: groupsList.map((g: any) => ({ ...g, member_count: g.group_members?.[0]?.count || 0 })) });
     if (jobList) set({ jobs: jobList });
     if (eventList) set({ events: eventList });
     if (confessionList) set({ confessions: confessionList });
