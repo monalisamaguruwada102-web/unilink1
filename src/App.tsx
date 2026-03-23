@@ -69,6 +69,44 @@ export default function App() {
     };
   }, [session?.user?.id]);
 
+  // 📍 Persistent Location Tracking
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    let watchId: number | null = null;
+    let lastUpdate = 0;
+    const MIN_UPDATE_INTERVAL = 60000; // 1 minute debounce
+
+    const updateLocation = (pos: GeolocationPosition) => {
+      const now = Date.now();
+      if (now - lastUpdate < MIN_UPDATE_INTERVAL) return;
+      lastUpdate = now;
+      supabase.from('users').update({
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+        location_updated_at: new Date().toISOString(),
+      }).eq('id', session.user.id);
+    };
+
+    if ('geolocation' in navigator) {
+      // Request immediately
+      navigator.geolocation.getCurrentPosition(updateLocation, () => {}, {
+        enableHighAccuracy: false,
+        timeout: 10000,
+      });
+      // Watch for changes
+      watchId = navigator.geolocation.watchPosition(updateLocation, () => {}, {
+        enableHighAccuracy: false,
+        timeout: 30000,
+        maximumAge: 60000,
+      });
+    }
+
+    return () => {
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    };
+  }, [session?.user?.id]);
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50">

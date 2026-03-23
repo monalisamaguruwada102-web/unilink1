@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
@@ -302,9 +302,62 @@ export default function Feed() {
               <p className="font-black text-sm uppercase tracking-widest">Scanning Campus...</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <AnimatePresence>
-                {posts.map((post, idx) => (
+                {posts.map((post, idx) => {
+                  const confId = `c-${idx}`;
+                  const nudgeId = `n-${idx}`;
+                  const showConfession = idx > 0 && idx % 3 === 0 && confessions[Math.floor(idx / 3) - 1];
+                  const showNudge = idx > 0 && idx % 5 === 0;
+                  const c = showConfession ? confessions[Math.floor(idx / 3) - 1] : null;
+
+                  return (
+                    <React.Fragment key={post.id}>
+                      {showConfession && c && (
+                        <motion.div
+                          key={confId}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`rounded-[2.5rem] p-6 border border-pink-500/20 bg-gradient-to-br from-pink-500/5 to-purple-500/5 ${isDarkMode ? '' : 'shadow-lg shadow-pink-500/5'}`}
+                        >
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="w-9 h-9 rounded-xl bg-pink-500/20 flex items-center justify-center">
+                              <Lock size={16} className="text-pink-500" />
+                            </div>
+                            <div>
+                              <p className="font-black text-xs uppercase tracking-widest text-pink-500">Campus Secret</p>
+                              <p className="text-[9px] font-bold opacity-30 uppercase tracking-widest">Anonymous</p>
+                            </div>
+                          </div>
+                          <p className="text-sm italic font-medium opacity-90 leading-relaxed mb-3">"{c.content}"</p>
+                          <p className="text-[9px] font-black opacity-25 uppercase tracking-widest">
+                            {c.created_at ? new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                          </p>
+                        </motion.div>
+                      )}
+
+                      {showNudge && (
+                        <motion.div
+                          key={nudgeId}
+                          initial={{ opacity: 0, scale: 0.97 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="rounded-[2.5rem] p-6 bg-gradient-to-br from-indigo-500/10 to-primary-500/10 border border-primary-500/20 flex items-center gap-5"
+                        >
+                          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-500 to-indigo-600 flex items-center justify-center text-white shadow-xl shadow-primary-500/40 flex-shrink-0">
+                            <Heart size={24} fill="white" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-black text-sm">Find Your Campus Match</p>
+                            <p className="text-[10px] opacity-50 font-bold uppercase tracking-widest mt-0.5">Students are online now</p>
+                          </div>
+                          <button
+                            onClick={() => window.location.href = '/discover'}
+                            className="px-5 py-3 bg-primary-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary-500/30"
+                          >
+                            Explore
+                          </button>
+                        </motion.div>
+                      )}
                   <motion.div
                     key={post.id}
                     initial={{ opacity: 0, y: 30 }}
@@ -459,8 +512,10 @@ export default function Feed() {
                         </div>
                       </div>
                     </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                    </React.Fragment>
+                  );
+                })}
               </AnimatePresence>
             </div>
           )}

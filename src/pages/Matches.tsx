@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Search, ChevronRight, MessageSquare } from 'lucide-react';
+import { Heart, Search, ChevronRight, MessageSquare, MapPin, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Matches() {
@@ -12,6 +12,7 @@ export default function Matches() {
   const [likedMe, setLikedMe] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [locationMatch, setLocationMatch] = useState<any>(null);
   const { session } = useAuthStore();
   const { isDarkMode } = useFeatureStore();
   const navigate = useNavigate();
@@ -42,8 +43,8 @@ export default function Matches() {
           last_message_content,
           last_message_at,
           last_message_type,
-          user1:users!matches_user1_id_fkey(id, name, avatar_url, course, last_seen),
-          user2:users!matches_user2_id_fkey(id, name, avatar_url, course, last_seen)
+          user1:users!matches_user1_id_fkey(id, name, avatar_url, course, last_seen, latitude, longitude, location_updated_at),
+          user2:users!matches_user2_id_fkey(id, name, avatar_url, course, last_seen, latitude, longitude, location_updated_at)
         `)
         .or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`)
         .order('last_message_at', { ascending: false, nullsFirst: false })
@@ -282,9 +283,25 @@ export default function Matches() {
                        </p>
                     </div>
 
-                    <button className="w-12 h-12 rounded-2xl bg-primary-500/10 text-primary-500 flex items-center justify-center group-hover:bg-primary-500 group-hover:text-white transition-all">
-                       <MessageSquare size={20} />
-                    </button>
+                     <button 
+                       onClick={(e) => { e.stopPropagation(); navigate(`/chat/${match.id}`); }}
+                       className="w-12 h-12 rounded-2xl bg-primary-500/10 text-primary-500 flex items-center justify-center group-hover:bg-primary-500 group-hover:text-white transition-all"
+                     >
+                        <MessageSquare size={20} />
+                     </button>
+                     {match.user.latitude && match.user.longitude && (
+                       <button
+                         onClick={(e) => { e.stopPropagation(); setLocationMatch(match); }}
+                         className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
+                           match.user.location_updated_at && (new Date().getTime() - new Date(match.user.location_updated_at).getTime()) < 300000
+                             ? 'bg-green-500/10 text-green-500 hover:bg-green-500 hover:text-white'
+                             : isDarkMode ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-400'
+                         }`}
+                         title="See location"
+                       >
+                         <MapPin size={20} />
+                       </button>
+                     )}
                   </motion.div>
                 ))}
               </AnimatePresence>
@@ -377,6 +394,105 @@ export default function Matches() {
            </button>
         </div>
       )}
+
+      {/* 📍 LOCATION MODAL */}
+      <AnimatePresence>
+        {locationMatch && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-end"
+            onClick={() => setLocationMatch(null)}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25 }}
+              className={`w-full rounded-t-[3rem] overflow-hidden ${isDarkMode ? 'bg-gray-950' : 'bg-white'}`}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className={`flex items-center justify-between px-7 py-5 ${isDarkMode ? 'border-b border-gray-800' : 'border-b border-gray-100'}`}>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl overflow-hidden">
+                    {locationMatch.user.avatar_url
+                      ? <img src={locationMatch.user.avatar_url} className="w-full h-full object-cover" alt="" />
+                      : <div className="w-full h-full bg-primary-100 flex items-center justify-center font-black text-primary-600">{locationMatch.user.name?.[0]}</div>
+                    }
+                  </div>
+                  <div>
+                    <h3 className="font-black text-base">{locationMatch.user.name}'s Location</h3>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <div className={`w-2 h-2 rounded-full ${
+                        locationMatch.user.location_updated_at && (new Date().getTime() - new Date(locationMatch.user.location_updated_at).getTime()) < 300000
+                          ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
+                      }`} />
+                      <p className="text-[10px] font-bold uppercase tracking-widest opacity-50">
+                        {locationMatch.user.location_updated_at
+                          ? `Updated ${new Date(locationMatch.user.location_updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                          : 'Location unknown'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => setLocationMatch(null)} className={`p-3 rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Map iframe via OpenStreetMap */}
+              <div className="relative w-full" style={{ height: '55vh' }}>
+                {locationMatch.user.latitude && locationMatch.user.longitude ? (
+                  <iframe
+                    title="match-location"
+                    width="100%"
+                    height="100%"
+                    frameBorder="0"
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${locationMatch.user.longitude - 0.01}%2C${locationMatch.user.latitude - 0.01}%2C${locationMatch.user.longitude + 0.01}%2C${locationMatch.user.latitude + 0.01}&layer=mapnik&marker=${locationMatch.user.latitude}%2C${locationMatch.user.longitude}`}
+                    style={{ border: 0 }}
+                    allowFullScreen
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center opacity-30 gap-4">
+                    <MapPin size={48} />
+                    <p className="font-black text-sm uppercase tracking-widest">Location not shared yet</p>
+                  </div>
+                )}
+
+                {/* Overlay pin label */}
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
+                  <div className="px-5 py-3 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl flex items-center gap-3 border border-gray-100 dark:border-gray-800">
+                    <MapPin size={16} className="text-primary-500" />
+                    <span className="font-black text-xs uppercase tracking-widest">{locationMatch.user.name} is here</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action row */}
+              <div className="px-7 py-5 flex gap-4">
+                <button
+                  onClick={() => { setLocationMatch(null); navigate(`/chat/${locationMatch.id}`); }}
+                  className="flex-1 py-4 bg-primary-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary-500/30"
+                >
+                  Open Chat
+                </button>
+                <a
+                  href={`https://www.google.com/maps?q=${locationMatch.user.latitude},${locationMatch.user.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex-1 py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-center border ${
+                    isDarkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-600'
+                  }`}
+                >
+                  Open in Maps
+                </a>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
