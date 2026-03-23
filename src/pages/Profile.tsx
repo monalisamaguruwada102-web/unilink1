@@ -44,16 +44,20 @@ export default function Profile() {
 
     const path = `${session.user.id}/avatar.${file.name.split('.').pop()}`;
     const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+    if (error) {
+       console.error('Avatar upload error:', error);
+       alert(`❌ Upload failed: ${error.message}. Make sure you've run the SQL migration for storage buckets.`);
+       setUploading(false);
+       return;
+    }
 
-    if (!error) {
-      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+    const { data } = supabase.storage.from('avatars').getPublicUrl(path);
       const publicUrl = data.publicUrl + '?t=' + Date.now();
       setAvatarUrl(publicUrl);
       
       // Persist immediately
       await supabase.from('users').update({ avatar_url: publicUrl }).eq('id', session.user.id);
       await fetchProfile(session.user.id);
-    }
     setUploading(false);
   };
 

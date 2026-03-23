@@ -10,6 +10,21 @@ BEGIN
   END IF;
 END $$;
 
+-- 0.1 STORAGE BUCKETS & POLICIES
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('post-images', 'post-images', true),
+       ('avatars', 'avatars', true)
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "Public View" ON storage.objects;
+CREATE POLICY "Public View" ON storage.objects FOR SELECT USING (bucket_id IN ('post-images', 'avatars'));
+
+DROP POLICY IF EXISTS "Authenticated Upload" ON storage.objects;
+CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id IN ('post-images', 'avatars') AND 
+  auth.role() = 'authenticated'
+);
+
 -- 1. POST LIKES TABLE (Robust liking)
 CREATE TABLE IF NOT EXISTS post_likes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
