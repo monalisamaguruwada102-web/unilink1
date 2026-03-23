@@ -16,19 +16,23 @@ export default defineConfig({
         short_name: 'PolyLink',
         description: 'The social connection app for Kwekwe Polytechnic students.',
         theme_color: '#ec4899',
-        background_color: '#ffffff',
+        background_color: '#030712',
         display: 'standalone',
+        orientation: 'portrait',
+        scope: '/',
         start_url: '/',
         icons: [
           {
             src: 'pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any maskable'
           },
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any maskable'
           }
         ]
       }

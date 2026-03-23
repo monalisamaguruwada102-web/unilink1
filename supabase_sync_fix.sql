@@ -34,29 +34,51 @@ CREATE TABLE IF NOT EXISTS post_likes (
   UNIQUE(post_id, user_id)
 );
 
--- ENABLE REALTIME FOR MESSAGES
+-- ENABLE REALTIME FOR ALL SOCIAL TABLES
 DO $$
 BEGIN
-  -- Create table if it doesn't exist
-  CREATE TABLE IF NOT EXISTS messages (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    match_id UUID REFERENCES matches(id) ON DELETE CASCADE NOT NULL,
-    sender_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
-    content TEXT NOT NULL,
-    type TEXT DEFAULT 'text',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-  );
-
-  -- Ensure 'type' column exists if the table already existed
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='messages' AND column_name='type') THEN
-    ALTER TABLE messages ADD COLUMN type TEXT DEFAULT 'text';
+  -- Posts
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'posts') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE posts;
   END IF;
-
-  -- Add to replication
+  -- Post Likes
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'post_likes') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE post_likes;
+  END IF;
+  -- Profile Likes
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'likes') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE likes;
+  END IF;
+  -- Matches
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'matches') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE matches;
+  END IF;
+  -- Messages
   IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'messages') THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE messages;
   END IF;
 END $$;
+
+-- PREVENT DUPLICATE MATCHES (Strict)
+-- We use a function to ensure (user_a, user_b) and (user_b, user_a) are treated as the same
+CREATE OR REPLACE FUNCTION check_duplicate_match()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM matches 
+    WHERE (user1_id = NEW.user1_id AND user2_id = NEW.user2_id)
+       OR (user1_id = NEW.user2_id AND user2_id = NEW.user1_id)
+  ) THEN
+    RETURN NULL; -- Don't insert
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_check_duplicate_match ON matches;
+CREATE TRIGGER trigger_check_duplicate_match
+BEFORE INSERT ON matches
+FOR EACH ROW EXECUTE FUNCTION check_duplicate_match();
 
 -- Enable RLS for post_likes
 ALTER TABLE post_likes ENABLE ROW LEVEL SECURITY;

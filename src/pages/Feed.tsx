@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
-import { Heart, MessageCircle, Image, Send, X, Plus, Lock, MoreHorizontal, Hash, ShieldAlert } from 'lucide-react';
+import { Heart, MessageCircle, Image, Send, X, Plus, Lock, MoreHorizontal, Hash, ShieldAlert, Trash2 } from 'lucide-react';
 
 function SkeletonPost({ isDarkMode }: { isDarkMode: boolean }) {
   return (
@@ -167,6 +167,19 @@ export default function Feed() {
     setCommentText('');
     loadComments(activeCommentsPost.id);
   };
+  
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm('Are you sure you want to delete this post? This cannot be undone.')) return;
+    try {
+      const { error } = await supabase.from('posts').delete().eq('id', postId);
+      if (error) throw error;
+      // Force refresh features to update local state
+      await fetchFeatures();
+      alert('🗑️ Post deleted successfully.');
+    } catch (err: any) {
+      alert(`❌ Delete failed: ${err.message}`);
+    }
+  };
 
   return (
     <div className={`min-h-screen overflow-y-auto pb-36 transition-colors duration-300 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}>
@@ -306,7 +319,17 @@ export default function Feed() {
                       <p className="text-[10px] opacity-40 font-bold uppercase tracking-tight">{post.users?.course || 'Campus Resident'}</p>
                     </div>
                   </div>
-                  <button className={`p-3 rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'}`}><MoreHorizontal size={18} /></button>
+                  <div className="flex items-center gap-2">
+                    {post.user_id === session?.user.id && (
+                      <button 
+                        onClick={() => handleDeletePost(post.id)}
+                        className={`p-3 rounded-2xl text-red-500 transition ${isDarkMode ? 'bg-red-500/10 hover:bg-red-500 hover:text-white' : 'bg-red-50 hover:bg-red-500 hover:text-white'}`}
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
+                    <button className={`p-3 rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'}`}><MoreHorizontal size={18} /></button>
+                  </div>
                 </div>
 
                 {/* Post Image */}

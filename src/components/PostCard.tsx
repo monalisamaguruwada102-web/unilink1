@@ -1,4 +1,5 @@
-import { Heart, MessageSquare } from 'lucide-react';
+import { Heart, MessageSquare, Trash2 } from 'lucide-react';
+import { useAuthStore } from '../store/useAuthStore';
 
 interface Post {
   id: string;
@@ -20,9 +21,11 @@ interface PostCardProps {
   post: Post;
   onLike?: (id: string) => void;
   onComment?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
-export default function PostCard({ post, onLike, onComment }: PostCardProps) {
+export default function PostCard({ post, onLike, onComment, onDelete }: PostCardProps) {
+  const { session } = useAuthStore();
   return (
     <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4">
       <div className="flex items-center gap-3 mb-3">
@@ -37,12 +40,20 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
             {post.users?.name?.charAt(0) || 'U'}
           </div>
         )}
-        <div>
+        <div className="flex-1">
           <h4 className="font-semibold text-gray-900">{post.users?.name || 'Unknown User'}</h4>
           <span className="text-xs text-gray-500">
             {new Date(post.created_at).toLocaleDateString()}
           </span>
         </div>
+        {session?.user.id === post.user_id && (
+          <button 
+            onClick={() => onDelete && onDelete(post.id)}
+            className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+          >
+            <Trash2 size={18} />
+          </button>
+        )}
       </div>
       
       <p className="text-gray-800 mb-3 whitespace-pre-wrap">{post.content}</p>
