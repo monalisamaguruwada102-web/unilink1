@@ -142,6 +142,7 @@ interface FeatureState {
   addToCrushList: (userId: string, crushId: string) => Promise<boolean>; // Returns true if it's a mutual crush
   voteInStoryPoll: (storyId: string, userId: string, optionIndex: number) => Promise<void>;
   submitStoryWithPoll: (userId: string, userName: string, imageUrl: string, question: string, options: string[]) => Promise<void>;
+  deletePost: (postId: string) => Promise<void>;
 }
 
 export const useFeatureStore = create<FeatureState>((set, get) => ({
@@ -218,6 +219,11 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     }));
   },
 
+  deletePost: async (postId: string) => {
+    await supabase.from('posts').delete().eq('id', postId);
+    set(state => ({ posts: state.posts.filter(p => p.id !== postId) }));
+  },
+
   reactToStory: async (storyId, ownerId, userId, emoji) => {
     await supabase.from('story_reactions').insert({ story_id: storyId, user_id: userId, emoji });
     if (ownerId !== userId) {
@@ -274,7 +280,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   },
 
   clearNotifications: async (userId: string) => {
-    await supabase.from('notifications').delete().eq('id', userId); // Wait, this is by user_id actually
+    await supabase.from('notifications').delete().eq('user_id', userId);
     set({ notifications: [] });
   },
 
@@ -382,7 +388,10 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     ] = await Promise.all([
       supabase.from('course_groups').select('*, users(name, avatar_url)').order('created_at', { ascending: false }).limit(20),
       supabase.from('confessions').select('*').order('created_at', { ascending: false }).limit(10),
-      supabase.from('stories').select('*, users(id, name, avatar_url)').order('created_at', { ascending: false }),
+      supabase.from('stories')
+        .select('*, users(id, name, avatar_url)')
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .order('created_at', { ascending: false }),
       supabase.from('posts').select('*, users(name, avatar_url, course), post_comments(count)').order('created_at', { ascending: false }).limit(25),
       supabase.from('post_likes').select('post_id, user_id'),
       supabase.from('notifications').select('*, users:users!notifications_sender_id_fkey(name, avatar_url)').order('created_at', { ascending: false }).limit(20),
