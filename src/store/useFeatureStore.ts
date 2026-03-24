@@ -422,21 +422,10 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
           is_viewed: false
        }))});
     } else {
-       set({ stories: [
-         { id: '1', user_id: '1', user_name: 'Nyasha', image_url: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&h=200&fit=crop', is_viewed: false, expires_at: '' },
-         { id: '2', user_id: '2', user_name: 'Tinashe', image_url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop', is_viewed: false, expires_at: '' }
-       ]});
+       set({ stories: [] });
     }
 
-    set({ currentPoll: {
-       id: 'poll-1',
-       question: 'Best meal at the canteen?',
-       options: [
-         { label: 'Sadza & Beef', votes: 120 },
-         { label: 'Chips & Chicken', votes: 85 },
-         { label: 'Beans & Cabbage', votes: 30 }
-       ]
-    }});
+    set({ currentPoll: null });
 
     // ==========================================
     // 🟠 REACTIVE REALTIME ENGINE SUBSCRIPTIONS
