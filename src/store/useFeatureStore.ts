@@ -10,6 +10,8 @@ interface Story {
   expires_at: string;
   poll_question?: string;
   poll_options?: string[];
+  poll_results?: number[];
+  is_verified?: boolean;
 }
 
 interface Event {
@@ -61,7 +63,7 @@ interface Post {
   image_url: string;
   likes: number;
   created_at: string;
-  users?: { name: string; avatar_url: string; course: string };
+  users?: { name: string; avatar_url: string; course: string; is_verified?: boolean };
   comment_count?: number;
   is_liked?: boolean;
 }

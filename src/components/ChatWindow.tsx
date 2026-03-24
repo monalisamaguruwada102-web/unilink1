@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, ArrowLeft, Mic, Smile, MoreVertical, Play, Pause, Trash2 } from 'lucide-react';
+import { Send, ArrowLeft, Mic, Smile, MoreVertical, Play } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
@@ -34,7 +34,6 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   const [showStickers, setShowStickers] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const { session } = useAuthStore();
   const { isDarkMode } = useFeatureStore();
   const [showMenu, setShowMenu] = useState(false);
@@ -122,14 +121,14 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     const fileName = `${session.user.id}/voice_${Date.now()}.webm`;
     
     try {
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('post-images')
         .upload(fileName, blob, { contentType: 'audio/webm' });
 
       if (error) throw error;
 
-      const { data: { publicUrl } } = supabase.storage.from('post-images').getPublicUrl(fileName);
-      handleSend(publicUrl, 'voice');
+      const { data: urlData } = supabase.storage.from('post-images').getPublicUrl(fileName);
+      handleSend(urlData.publicUrl, 'voice');
     } catch (err: any) {
       console.error('Voice upload error:', err);
       alert('❌ Failed to send voice note.');
@@ -211,12 +210,6 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
                     <button onClick={() => { const a = new Audio(msg.content); a.play(); }} className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center hover:scale-110 active:scale-90 transition shadow-xl">
                       <Play size={18} fill="white" />
                     </button>
-                    <div className="flex-1 space-y-1">
-                       <div className="h-1.5 w-24 bg-white/20 rounded-full overflow-hidden">
-                          <motion.div initial={{ width: 0 }} animate={{ width: '100%' }} transition={{ duration: 12, repeat: Infinity }} className="h-full bg-white" />
-                       </div>
-                       <p className="text-[8px] font-black uppercase opacity-60 tracking-widest">Voice Note</p>
-                    </div>
                   </div>
                 ) : (
                   <p className="font-medium text-[13px] leading-relaxed">{msg.content}</p>
