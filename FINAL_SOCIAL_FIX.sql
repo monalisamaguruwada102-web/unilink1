@@ -25,15 +25,29 @@ AFTER INSERT OR DELETE ON post_likes
 FOR EACH ROW EXECUTE FUNCTION update_post_likes_count();
 
 -- 3. FIX GROUPS RELATIONSHIPS & TABLES
-CREATE TABLE IF NOT EXISTS course_groups (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name TEXT NOT NULL,
-  course TEXT,
-  description TEXT,
-  creator_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  member_count INTEGER DEFAULT 1
-);
+-- If the table exists but is missing creator_id, rename created_by if it exists or add it.
+DO $$ 
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'course_groups') THEN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'course_groups' AND column_name = 'creator_id') THEN
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'course_groups' AND column_name = 'created_by') THEN
+                ALTER TABLE course_groups RENAME COLUMN created_by TO creator_id;
+            ELSE
+                ALTER TABLE course_groups ADD COLUMN creator_id UUID REFERENCES users(id) ON DELETE CASCADE;
+            END IF;
+        END IF;
+    ELSE
+        CREATE TABLE course_groups (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          name TEXT NOT NULL,
+          course TEXT,
+          description TEXT,
+          creator_id UUID REFERENCES users(id) ON DELETE CASCADE,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          member_count INTEGER DEFAULT 1
+        );
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS group_members (
   group_id UUID REFERENCES course_groups(id) ON DELETE CASCADE,
@@ -41,9 +55,6 @@ CREATE TABLE IF NOT EXISTS group_members (
   joined_at TIMESTAMPTZ DEFAULT NOW(),
   PRIMARY KEY (group_id, user_id)
 );
-
--- 4. FIX NOTIFICATIONS SENDER NAME (Select)
--- (Users table must exist)
 
 -- 5. MENTIONS & REACTIONS
 CREATE TABLE IF NOT EXISTS post_mentions (

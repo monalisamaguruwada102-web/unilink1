@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, X, MapPin, Search, MessageCircle, Info, User, GraduationCap, XCircle } from 'lucide-react';
+import { Heart, X, MapPin, Search, MessageCircle, Info, User, GraduationCap, XCircle, Star, Sparkles, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Discover() {
@@ -14,6 +14,10 @@ export default function Discover() {
   const [matchId, setMatchId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProfile, setSelectedProfile] = useState<any>(null);
+  const [discoveryMode, setDiscoveryMode] = useState<'dating' | 'study'>('dating');
+  const [selectedZone, setSelectedZone] = useState('');
+  const [selectedDept, setSelectedDept] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
 
   const { session, profile: myProfile } = useAuthStore();
   const { isDarkMode } = useFeatureStore();
@@ -21,18 +25,28 @@ export default function Discover() {
 
   useEffect(() => { 
     fetchProfiles(); 
-  }, [searchQuery]);
+  }, [searchQuery, discoveryMode, selectedZone, selectedDept]);
 
   const fetchProfiles = async () => {
     if (!session?.user?.id) return;
     setLoading(true);
 
     try {
-      // Base query - fetch everyone except me (User wants to see them "always")
+      // Base query
       let query = supabase
         .from('users')
-        .select('id, name, age, course, bio, avatar_url, college, latitude, longitude')
+        .select('id, name, age, course, bio, avatar_url, college, latitude, longitude, is_study_buddy_mode, department, campus_zone, is_verified')
         .neq('id', session.user.id);
+
+      if (discoveryMode === 'study') {
+        query = query.eq('is_study_buddy_mode', true);
+      }
+      if (selectedZone) {
+        query = query.eq('campus_zone', selectedZone);
+      }
+      if (selectedDept) {
+        query = query.eq('department', selectedDept);
+      }
 
       if (searchQuery) {
         query = query.or(`name.ilike.%${searchQuery}%,course.ilike.%${searchQuery}%,bio.ilike.%${searchQuery}%`);
@@ -100,6 +114,19 @@ export default function Discover() {
     }
   };
 
+  const { addToCrushList, crushList } = useFeatureStore();
+  const handleSecretCrush = async (profileId: string) => {
+    if (!session) return;
+    const isMatched = await addToCrushList(session.user.id, profileId);
+    if (isMatched) {
+      const matchedProfile = profiles.find(p => p.id === profileId);
+      setMatchedUser(matchedProfile);
+    } else {
+      alert('❤️ Added to your secret crush list! If they add you too, it\'s a match!');
+      nextProfile();
+    }
+  };
+
   const handlePass = () => {
     nextProfile();
   };
@@ -142,31 +169,69 @@ export default function Discover() {
              </button>
            )}
         </div>
-        {/* Recent Activity Header */}
-      {!searchQuery && profiles.length > 0 && (
-        <div className="px-5 mb-6 overflow-hidden">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 mb-4 flex items-center gap-2">
-            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> Recently Active
-          </p>
-          <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-2">
-            {profiles.slice(0, 8).map((p) => (
-              <motion.button
-                key={`recent-${p.id}`}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setSelectedProfile(p)}
-                className="flex-shrink-0 flex flex-col items-center gap-2"
+
+        {/* Discovery Mode & Filters */}
+        <div className="flex flex-wrap items-center gap-3 mt-4 px-1">
+           <div className={`p-1 rounded-2xl flex gap-1 ${isDarkMode ? 'bg-gray-900 border border-gray-800' : 'bg-gray-100'}`}>
+              <button 
+                type="button"
+                onClick={() => setDiscoveryMode('dating')}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${discoveryMode === 'dating' ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/30' : 'opacity-40'}`}
               >
-                <div className="w-14 h-14 rounded-2xl p-0.5 bg-gradient-to-tr from-primary-500 to-indigo-500">
-                  <div className="w-full h-full rounded-[0.85rem] border-2 border-white dark:border-gray-950 overflow-hidden bg-gray-100 italic font-black text-primary-500 flex items-center justify-center">
-                    {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" /> : p.name?.[0]}
-                  </div>
-                </div>
-                <span className="text-[9px] font-black uppercase opacity-60 tracking-wider w-14 truncate text-center">{p.name.split(' ')[0]}</span>
-              </motion.button>
-            ))}
-          </div>
+                Dating
+              </button>
+              <button 
+                type="button"
+                onClick={() => setDiscoveryMode('study')}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${discoveryMode === 'study' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30' : 'opacity-40'}`}
+              >
+                Study Buddy
+              </button>
+           </div>
+           
+           <button 
+              type="button"
+              onClick={() => setShowFilters(!showFilters)}
+              className={`p-3 rounded-2xl transition ${showFilters ? 'bg-primary-500 text-white' : (isDarkMode ? 'bg-gray-900 border border-gray-800' : 'bg-gray-100')}`}
+           >
+              <Filter size={16} />
+           </button>
         </div>
-      )}
+
+        <AnimatePresence>
+          {showFilters && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="mt-2 overflow-hidden space-y-4 px-1"
+            >
+               <div className="grid grid-cols-2 gap-3 pb-2">
+                  <select 
+                    value={selectedZone}
+                    onChange={(e) => setSelectedZone(e.target.value)}
+                    className={`px-4 py-3 rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none border ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white'}`}
+                  >
+                    <option value="">All Zones</option>
+                    <option value="Block A">Block A</option>
+                    <option value="Block C">Block C</option>
+                    <option value="Library">Library</option>
+                    <option value="Main Gate">Main Gate</option>
+                  </select>
+                  <select 
+                    value={selectedDept}
+                    onChange={(e) => setSelectedDept(e.target.value)}
+                    className={`px-4 py-3 rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none border ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white'}`}
+                  >
+                    <option value="">All Depts</option>
+                    <option value="IT">IT</option>
+                    <option value="Engineering">Engineering</option>
+                    <option value="Commerce">Commerce</option>
+                  </select>
+               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Main Content Area */}
@@ -195,7 +260,7 @@ export default function Discover() {
                  onClick={() => setSelectedProfile(p)}
                  className={`p-4 rounded-3xl border flex items-center gap-4 active:scale-95 transition ${card}`}
                >
-                 <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border-2 border-primary-500/20">
+                 <div className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-lg border-2 border-primary-500/20">
                    {p.avatar_url ? (
                      <img src={p.avatar_url} className="w-full h-full object-cover" alt="" />
                    ) : (
@@ -203,12 +268,23 @@ export default function Discover() {
                        {p.name[0]}
                      </div>
                    )}
+                   {p.is_verified && (
+                      <div className="absolute top-0 right-0 p-1 bg-white dark:bg-gray-900 rounded-bl-xl border-l border-b border-primary-500/20">
+                         <Sparkles size={10} className="text-blue-500" />
+                      </div>
+                   )}
                  </div>
                  <div className="flex-1">
-                    <p className="font-black text-base">{p.name}</p>
+                    <div className="flex items-center gap-2">
+                       <p className="font-black text-base">{p.name}</p>
+                       {p.is_verified && <Sparkles size={12} className="text-blue-500" />}
+                    </div>
                     <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">{p.course || 'Kwekwe Poly'}</p>
                  </div>
-                 <button className="p-3 rounded-2xl bg-primary-500 text-white shadow-lg shadow-primary-500/30">
+                 <button 
+                   onClick={(e) => { e.stopPropagation(); handleLike(p.id); }}
+                   className="p-3 rounded-2xl bg-primary-500 text-white shadow-lg shadow-primary-500/30"
+                 >
                     <Heart size={18} fill="currentColor" />
                  </button>
                </motion.div>
@@ -264,6 +340,7 @@ export default function Discover() {
                   <div className="flex items-center justify-between mb-2">
                      <div className="flex items-center gap-3">
                        <h2 className="text-3xl font-black tracking-tighter">{currentProfile.name}, {currentProfile.age || '??'}</h2>
+                       {currentProfile.is_verified && <Sparkles size={20} className="text-blue-400" />}
                        <div className="w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />
                      </div>
                      <button 
@@ -301,10 +378,14 @@ export default function Discover() {
                       onClick={(e) => { e.stopPropagation(); handleLike(currentProfile.id); }}
                       className="flex-[2] h-16 bg-primary-500 rounded-[2rem] flex items-center justify-center text-white active:scale-95 transition shadow-2xl shadow-primary-500/40 relative overflow-hidden group"
                     >
-                      <motion.div
-                        className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500"
-                      />
                       <Heart size={28} fill="currentColor" />
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleSecretCrush(currentProfile.id); }}
+                      className={`h-16 w-16 rounded-[2rem] flex items-center justify-center transition shadow-xl ${isDarkMode ? 'bg-amber-500/20 text-amber-500 border border-amber-500/20' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}
+                      title="Secret crush"
+                    >
+                      <Star size={24} fill={crushList.includes(currentProfile.id) ? "currentColor" : "none"} strokeWidth={2.5} />
                     </button>
                   </div>
                 </div>
@@ -385,8 +466,11 @@ export default function Discover() {
                    <X size={20} />
                  </button>
                  <div className="absolute bottom-6 left-6 text-white">
-                   <h2 className="text-3xl font-black tracking-tighter">{selectedProfile.name}, {selectedProfile.age}</h2>
-                   <p className="opacity-70 text-sm font-bold uppercase tracking-widest italic">{selectedProfile.course}</p>
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-3xl font-black tracking-tighter">{selectedProfile.name}, {selectedProfile.age}</h2>
+                      {selectedProfile.is_verified && <Sparkles size={20} className="text-blue-400" />}
+                    </div>
+                    <p className="opacity-70 text-sm font-bold uppercase tracking-widest italic">{selectedProfile.course}</p>
                  </div>
                </div>
 
@@ -407,6 +491,18 @@ export default function Discover() {
                     <div className="p-4 rounded-2xl bg-primary-500/5 border border-primary-500/10">
                       <p className="text-sm font-bold text-primary-500">— {selectedProfile.college || 'Kwekwe Polytechnic'}</p>
                       <p className="text-xs opacity-60 font-medium mt-1 uppercase tracking-widest">{selectedProfile.course}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                         {selectedProfile.department && (
+                           <span className="px-2 py-1 bg-primary-500/10 rounded-lg text-[8px] font-black tracking-widest uppercase text-primary-500">
+                             {selectedProfile.department} Dept
+                           </span>
+                         )}
+                         {selectedProfile.campus_zone && (
+                           <span className="px-2 py-1 bg-green-500/10 rounded-lg text-[8px] font-black tracking-widest uppercase text-green-500">
+                             Zone: {selectedProfile.campus_zone}
+                           </span>
+                         )}
+                      </div>
                     </div>
                   </div>
 

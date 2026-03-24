@@ -13,7 +13,7 @@ export default function Matches() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [locationMatch, setLocationMatch] = useState<any>(null);
-  const { session } = useAuthStore();
+  const { session, profile } = useAuthStore();
   const { isDarkMode } = useFeatureStore();
   const navigate = useNavigate();
 
@@ -232,7 +232,7 @@ export default function Matches() {
               <p className="text-[10px] font-black uppercase tracking-widest opacity-30 mb-2">Recent Conversations</p>
               <AnimatePresence>
                 {matches
-                  .filter(m => m.lastMessage) // Only show those with messages in the main list
+                  .filter(m => m.lastMessage) 
                   .filter(m => m.user && m.user.name && m.user.name.toLowerCase().includes(searchQuery.toLowerCase()) || (m.user?.course || '').toLowerCase().includes(searchQuery.toLowerCase()))
                   .map((match, idx) => (
                   <motion.div
@@ -337,9 +337,13 @@ export default function Matches() {
                   >
                     <div className="w-full h-full rounded-[2.3rem] overflow-hidden relative">
                       {user.avatar_url ? (
-                        <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
+                        <img 
+                          src={user.avatar_url} 
+                          alt={user.name} 
+                          className={`w-full h-full object-cover transition-all duration-700 ${!profile?.is_premium ? 'blur-2xl scale-110' : ''}`} 
+                        />
                       ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                        <div className={`w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center ${!profile?.is_premium ? 'blur-xl' : ''}`}>
                           <span className="text-5xl font-black text-white/30">{user.name?.[0]}</span>
                         </div>
                       )}
@@ -350,17 +354,24 @@ export default function Matches() {
                          <div className="px-2 py-0.5 bg-indigo-500 text-white rounded-full text-[8px] font-black uppercase tracking-widest inline-block mb-2 shadow-lg">
                            Adored You
                          </div>
-                         <h4 className="text-white font-black text-sm truncate mb-0.5">{user.name}</h4>
-                         <p className="text-white/60 text-[8px] font-bold uppercase tracking-widest truncate mb-4">{user.course || 'Poly Student'}</p>
+                         <h4 className="text-white font-black text-sm truncate mb-0.5">
+                            {!profile?.is_premium ? 'Secret Fan' : user.name}
+                         </h4>
+                         <p className="text-white/60 text-[8px] font-bold uppercase tracking-widest truncate mb-4">
+                            {!profile?.is_premium ? 'Wants to meet you!' : (user.course || 'Poly Student')}
+                         </p>
                          
                          <div className="flex gap-2">
                            <button 
                              onClick={() => handleAccept(user.id)}
                              className="flex-1 py-3 bg-white text-indigo-600 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition"
                            >
-                             Match
+                             {!profile?.is_premium ? 'Reveal & Match' : 'Match'}
                            </button>
-                           <button className="w-10 h-10 bg-white/20 backdrop-blur-md text-white rounded-2xl flex items-center justify-center">
+                           <button 
+                             onClick={() => !profile?.is_premium ? alert('💎 Premium required to view detailed profile previews!') : null}
+                             className="w-10 h-10 bg-white/20 backdrop-blur-md text-white rounded-2xl flex items-center justify-center space-x-0"
+                           >
                               <Search size={14} />
                            </button>
                          </div>

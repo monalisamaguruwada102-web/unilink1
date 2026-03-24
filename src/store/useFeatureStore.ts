@@ -8,6 +8,8 @@ interface Story {
   image_url: string;
   is_viewed: boolean;
   expires_at: string;
+  poll_question?: string;
+  poll_options?: string[];
 }
 
 interface Event {
@@ -76,6 +78,12 @@ interface Confession {
   created_at: string;
 }
 
+interface StoryPollResponse {
+  story_id: string;
+  user_id: string;
+  option_index: number;
+}
+
 interface FeatureState {
   isDarkMode: boolean;
   isIncognito: boolean;
@@ -96,6 +104,8 @@ interface FeatureState {
   confessions: Confession[];
   notifications: any[];
   postLikes: PostLike[];
+  crushList: string[]; // List of crush IDs
+  storyPollResponses: StoryPollResponse[];
 
   toggleDarkMode: () => void;
   setIncognito: (val: boolean) => void;
@@ -126,6 +136,10 @@ interface FeatureState {
   markNotificationsRead: (userId: string) => Promise<void>;
   clearNotifications: (userId: string) => Promise<void>;
   joinGroup: (groupId: string, userId: string) => Promise<void>;
+
+  addToCrushList: (userId: string, crushId: string) => Promise<boolean>; // Returns true if it's a mutual crush
+  voteInStoryPoll: (storyId: string, userId: string, optionIndex: number) => Promise<void>;
+  submitStoryWithPoll: (userId: string, userName: string, imageUrl: string, question: string, options: string[]) => Promise<void>;
 }
 
 export const useFeatureStore = create<FeatureState>((set, get) => ({
@@ -148,6 +162,8 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   confessions: [],
   notifications: [],
   postLikes: [],
+  crushList: [],
+  storyPollResponses: [],
 
   toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
   setIncognito: (val) => set({ isIncognito: val }),
@@ -219,6 +235,40 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
          courseGroups: state.courseGroups.map(g => g.id === groupId ? { ...g, member_count: (g.member_count || 0) + 1 } : g)
        }));
     }
+  },
+
+  addToCrushList: async (userId, crushId) => {
+    try {
+      await supabase.from('crush_list').upsert({ user_id: userId, crush_id: crushId });
+      set(state => ({ crushList: [...state.crushList, crushId] }));
+      const { data: mutual } = await supabase.from('crush_list').select('id').eq('user_id', crushId).eq('crush_id', userId).maybeSingle();
+      if (mutual) {
+        await supabase.from('notifications').insert([
+          { user_id: crushId, sender_id: userId, type: 'match', content: 'SECRET CRUSH REVEALED! ❤️' },
+          { user_id: userId, sender_id: crushId, type: 'match', content: 'SECRET CRUSH REVEALED! ❤️' }
+        ]);
+        await supabase.from('matches').insert({ user1_id: userId, user2_id: crushId });
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Crush list error:', err);
+      return false;
+    }
+  },
+
+  voteInStoryPoll: async (storyId, userId, optionIndex) => {
+    try {
+      await supabase.from('story_poll_responses').upsert({ story_id: storyId, user_id: userId, option_index: optionIndex });
+      set(state => ({ storyPollResponses: [...state.storyPollResponses, { story_id: storyId, user_id: userId, option_index: optionIndex }] }));
+    } catch (err) {
+      console.error('Poll vote error:', err);
+    }
+  },
+
+  submitStoryWithPoll: async (userId, userName, imageUrl, question, options) => {
+     const { data } = await supabase.from('stories').insert({ user_id: userId, image_url: imageUrl, poll_question: question, poll_options: options }).select().single();
+     if (data) set((state) => ({ stories: [{ ...data, user_name: userName, is_viewed: false }, ...state.stories] }));
   },
 
   clearNotifications: async (userId: string) => {
@@ -319,37 +369,43 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
 
   fetchFeatures: async () => {
     const [
-      { data: groupsList },
-      { data: confessionList },
-      { data: storyList },
-      { data: postList },
-      { data: myPostLikes },
-      { data: notifyList }
+      groupsRes,
+      confessionsRes,
+      storiesRes,
+      postsRes,
+      likesRes,
+      notificationsRes,
+      crushRes,
+      pollsRes
     ] = await Promise.all([
       supabase.from('course_groups').select('*, users(name, avatar_url)').order('created_at', { ascending: false }).limit(20),
       supabase.from('confessions').select('*').order('created_at', { ascending: false }).limit(10),
       supabase.from('stories').select('*, users(id, name, avatar_url)').order('created_at', { ascending: false }),
       supabase.from('posts').select('*, users(name, avatar_url, course), post_comments(count)').order('created_at', { ascending: false }).limit(25),
       supabase.from('post_likes').select('post_id, user_id'),
-      supabase.from('notifications').select('*, users:users!notifications_sender_id_fkey(name, avatar_url)').order('created_at', { ascending: false }).limit(20)
+      supabase.from('notifications').select('*, users:users!notifications_sender_id_fkey(name, avatar_url)').order('created_at', { ascending: false }).limit(20),
+      supabase.from('crush_list').select('crush_id'),
+      supabase.from('story_poll_responses').select('*')
     ]);
+    const myId = (await supabase.auth.getSession()).data.session?.user.id;
 
-    if (groupsList) set({ courseGroups: groupsList.map((g: any) => ({ ...g, member_count: g.group_members?.[0]?.count || 0 })) });
-    if (confessionList) set({ confessions: confessionList });
-    if (myPostLikes) set({ postLikes: myPostLikes });
-    if (notifyList) set({ notifications: notifyList });
+    if (groupsRes.data) set({ courseGroups: groupsRes.data.map((g: any) => ({ ...g, member_count: g.group_members?.[0]?.count || 0 })) });
+    if (confessionsRes.data) set({ confessions: confessionsRes.data });
+    if (likesRes.data) set({ postLikes: likesRes.data });
+    if (notificationsRes.data) set({ notifications: notificationsRes.data });
+    if (crushRes.data) set({ crushList: crushRes.data.map((c: any) => c.crush_id) });
+    if (pollsRes.data) set({ storyPollResponses: pollsRes.data });
     
-    if (postList) {
-      const myId = (await supabase.auth.getSession()).data.session?.user.id;
-      set({ posts: postList.map((p: any) => ({
+    if (postsRes.data) {
+      set({ posts: postsRes.data.map((p: any) => ({
         ...p,
         comment_count: p.post_comments?.[0]?.count || 0,
-        is_liked: myPostLikes?.some(pl => pl.post_id === p.id && pl.user_id === myId)
+        is_liked: likesRes.data?.some(pl => pl.post_id === p.id && pl.user_id === myId)
       }))});
     }
 
-    if (storyList && storyList.length > 0) {
-       set({ stories: storyList.map((s: any) => ({
+    if (storiesRes.data && storiesRes.data.length > 0) {
+       set({ stories: storiesRes.data.map((s: any) => ({
           ...s,
           user_name: s.users?.name || 'Poly Student',
           is_viewed: false

@@ -20,7 +20,11 @@ export type UserProfile = {
   longitude?: number | null;
   location_updated_at?: string | null;
   is_location_enabled?: boolean;
-  interests?: string[] | null;
+  is_premium?: boolean;
+  is_verified?: boolean;
+  is_study_buddy_mode?: boolean;
+  department?: string | null;
+  campus_zone?: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, ArrowLeft, Mic, Smile, MoreVertical } from 'lucide-react';
+import { Send, ArrowLeft, Mic, Smile, MoreVertical, Play, Pause, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
@@ -33,10 +33,16 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   const [input, setInput] = useState('');
   const [showStickers, setShowStickers] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const { session } = useAuthStore();
   const { isDarkMode } = useFeatureStore();
   const [showMenu, setShowMenu] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<any>(null);
+
   const isOnline = otherUser.last_seen ? (new Date().getTime() - new Date(otherUser.last_seen).getTime()) < 60000 * 3 : false;
 
   useEffect(() => {
@@ -56,6 +62,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
 
     return () => {
       supabase.removeChannel(channel);
+      if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [matchId]);
 
@@ -73,19 +80,73 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     if (data) setMessages(data);
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await uploadVoiceNote(audioBlob);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error('Error starting recording:', err);
+      alert('🎙️ Microphone access denied!');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      setIsRecording(false);
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+  };
+
+  const uploadVoiceNote = async (blob: Blob) => {
+    if (!session) return;
+    const fileName = `${session.user.id}/voice_${Date.now()}.webm`;
+    
+    try {
+      const { data, error } = await supabase.storage
+        .from('post-images')
+        .upload(fileName, blob, { contentType: 'audio/webm' });
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage.from('post-images').getPublicUrl(fileName);
+      handleSend(publicUrl, 'voice');
+    } catch (err: any) {
+      console.error('Voice upload error:', err);
+      alert('❌ Failed to send voice note.');
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
   const handleSend = async (content: string, type: 'text' | 'sticker' | 'voice' = 'text') => {
     if (!content.trim() || !session) return;
     
     setInput('');
     setShowStickers(false);
-
-    // Defensive check for UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(matchId)) {
-      console.error('Invalid matchId format:', matchId);
-      alert('❌ Error: Chat session expired or invalid. Please back to Matches.');
-      return;
-    }
 
     const { error: msgError } = await supabase.from('messages').insert({
       match_id: matchId,
@@ -95,18 +156,16 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     });
 
     if (msgError) {
-       console.error('Message send failed:', msgError);
        alert(`❌ Message failed: ${msgError.message}`);
        return;
     }
 
-    // Notify the other user of the message
     await supabase.from('notifications').insert({
       user_id: otherUser.id,
       sender_id: session.user.id,
       type: 'message',
-      content: content.length > 30 ? content.slice(0, 30) + '...' : content,
-      post_id: matchId // We use post_id as a reference to the match_id here for notifications
+      content: type === 'voice' ? 'Sent a voice note 🎙️' : (content.length > 30 ? content.slice(0, 30) + '...' : content),
+      post_id: matchId
     });
   };
 
@@ -134,88 +193,37 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
             </p>
           </div>
         </div>
-        <div className="relative">
-          <button onClick={() => setShowMenu(!showMenu)} className="p-2 opacity-40 hover:opacity-100 transition">
-            <MoreVertical size={20} />
-          </button>
-
-          <AnimatePresence>
-            {showMenu && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                className={`absolute right-0 top-full mt-2 w-48 rounded-2xl shadow-xl border overflow-hidden z-50 ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'}`}
-              >
-                <button 
-                  onClick={() => { setShowMenu(false); alert('👤 View Profile: ' + otherUser.name); }}
-                  className={`w-full text-left px-5 py-3 text-sm font-bold transition hover:bg-primary-500/10 hover:text-primary-500`}
-                >
-                  View Profile
-                </button>
-                <div className={`h-px w-full ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`} />
-                <button 
-                  onClick={() => { setShowMenu(false); if(confirm('Clear all messages in this chat?')) { setMessages([]); alert('Messages cleared locally.'); } }}
-                  className={`w-full text-left px-5 py-3 text-sm font-bold transition hover:bg-yellow-500/10 hover:text-yellow-600`}
-                >
-                  Clear Chat
-                </button>
-                <button 
-                  onClick={() => { setShowMenu(false); if(confirm(`Block ${otherUser.name}? You won't see them anymore.`)) alert('User blocked.'); }}
-                  className={`w-full text-left px-5 py-3 text-sm font-bold transition hover:bg-red-500/10 hover:text-red-500`}
-                >
-                  Block & Report
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        <button onClick={() => setShowMenu(!showMenu)} className="p-2 opacity-40 hover:opacity-100 transition">
+          <MoreVertical size={20} />
+        </button>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 pt-24 pb-20 space-y-4 hide-scrollbar">
         {messages.map((msg) => {
           const isMine = msg.sender_id === session?.user.id;
           return (
-            <div
-              key={msg.id}
-              className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[80%] rounded-2xl px-5 py-3 shadow-sm relative ${
-                  isMine
-                    ? 'bg-gradient-to-br from-primary-500 to-primary-600 text-white rounded-tr-sm'
-                    : `border border-gray-100 rounded-tl-sm ${isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-800'}`
-                }`}
-              >
+            <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] rounded-2xl px-5 py-3 shadow-sm relative ${isMine ? 'bg-primary-500 text-white rounded-tr-sm' : `border border-gray-100 rounded-tl-sm ${isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-800'}`}`}>
                 {msg.type === 'sticker' ? (
-                  <div className="py-2 px-1">
-                    <span className="text-2xl font-black italic tracking-tighter uppercase whitespace-nowrap bg-white/20 px-4 py-2 rounded-xl border border-white/30">
-                      {msg.content}
-                    </span>
-                  </div>
+                   <span className="text-xl font-black italic uppercase tracking-tighter bg-white/20 px-3 py-1 rounded-lg border border-white/20">{msg.content}</span>
                 ) : msg.type === 'voice' ? (
-                  <div className="flex items-center gap-3 py-1">
-                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                      <Mic size={16} />
+                  <div className="flex items-center gap-4 py-1">
+                    <button onClick={() => { const a = new Audio(msg.content); a.play(); }} className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center hover:scale-110 active:scale-90 transition shadow-xl">
+                      <Play size={18} fill="white" />
+                    </button>
+                    <div className="flex-1 space-y-1">
+                       <div className="h-1.5 w-24 bg-white/20 rounded-full overflow-hidden">
+                          <motion.div initial={{ width: 0 }} animate={{ width: '100%' }} transition={{ duration: 12, repeat: Infinity }} className="h-full bg-white" />
+                       </div>
+                       <p className="text-[8px] font-black uppercase opacity-60 tracking-widest">Voice Note</p>
                     </div>
-                    <div className="h-1 w-24 bg-white/30 rounded-full overflow-hidden">
-                      <div className="h-full w-1/2 bg-white rounded-full animate-pulse" />
-                    </div>
-                    <span className="text-[10px] font-bold opacity-70">0:12</span>
                   </div>
                 ) : (
-                  <p className="font-medium">{msg.content}</p>
+                  <p className="font-medium text-[13px] leading-relaxed">{msg.content}</p>
                 )}
-                <div
-                  className={`text-[9px] mt-1.5 font-bold uppercase tracking-widest text-right ${
-                    isMine ? 'text-primary-100' : 'text-gray-400'
-                  }`}
-                >
-                  {new Date(msg.created_at).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </div>
+                <p className={`text-[8px] mt-1.5 font-bold uppercase tracking-widest text-right opacity-40`}>
+                  {new Date(msg.created_at).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}
+                </p>
               </div>
             </div>
           );
@@ -226,50 +234,29 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
       <div className={`fixed bottom-0 w-full max-w-md p-4 border-t z-20 transition-all ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'} pb-safe`}>
         <AnimatePresence>
           {showStickers && (
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 50 }}
-              className="mb-4 grid grid-cols-2 gap-2 p-2"
-            >
+            <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="mb-4 grid grid-cols-2 gap-2 p-2">
               {SLANG_STICKERS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => handleSend(s, 'sticker')}
-                  className="py-3 px-4 rounded-xl bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-300 font-black text-xs uppercase tracking-tighter italic border border-primary-100 dark:border-primary-900 hover:scale-105 active:scale-95 transition"
-                >
-                  {s}
-                </button>
+                <button key={s} onClick={() => handleSend(s, 'sticker')} className="py-3 px-4 rounded-xl bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-300 font-black text-xs uppercase tracking-tighter italic border border-primary-100 dark:border-primary-900 hover:scale-105 active:scale-95 transition">{s}</button>
               ))}
             </motion.div>
           )}
         </AnimatePresence>
 
         <form onSubmit={(e) => { e.preventDefault(); handleSend(input); }} className="flex items-center gap-3">
-          <button 
-            type="button" 
-            onClick={() => setShowStickers(!showStickers)}
-            className={`p-3 rounded-2xl transition ${showStickers ? 'bg-primary-100 text-primary-600' : isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}
-          >
+          <button type="button" onClick={() => setShowStickers(!showStickers)} className={`p-4 rounded-2xl transition ${showStickers ? 'bg-primary-100 text-primary-600' : isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
             <Smile size={24} />
           </button>
           
-          <div className={`flex-1 rounded-2xl flex items-center px-4 transition-all duration-300 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'} ${isRecording ? 'bg-red-500/10 border-red-500 ring-1 ring-red-500' : ''}`}>
+          <div className={`flex-1 rounded-2xl flex items-center px-4 transition-all duration-300 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'} ${isRecording ? 'bg-red-500/10 border-red-500' : ''}`}>
              <input
               type="text"
               value={input}
               disabled={isRecording}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={isRecording ? 'Recording...' : 'Type a message...'}
-              className="flex-1 bg-transparent py-4 text-sm font-medium focus:outline-none placeholder:text-gray-400"
+              placeholder={isRecording ? 'Recording Voice...' : 'Type a message...'}
+              className="flex-1 bg-transparent py-5 text-sm font-medium focus:outline-none placeholder:text-gray-400"
             />
-            {isRecording && (
-              <motion.div 
-                animate={{ opacity: [0, 1] }} 
-                transition={{ repeat: Infinity, duration: 1 }}
-                className="w-2.5 h-2.5 bg-red-500 rounded-full ml-2" 
-              />
-            )}
+            {isRecording && <motion.div animate={{ opacity: [0, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="flex items-center gap-2 pr-2 text-red-500 font-black text-[10px] uppercase tracking-widest"><div className="w-2.5 h-2.5 bg-red-500 rounded-full" /> {formatTime(recordingTime)}</motion.div>}
           </div>
 
           <AnimatePresence mode="wait">
@@ -277,20 +264,15 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
               <motion.button
                 key="voice"
                 type="button"
-                onMouseDown={() => { setIsRecording(true); alert('🎙️ Recording voice note...'); }}
-                onMouseUp={() => { setIsRecording(false); handleSend('Voice Note', 'voice'); }}
-                className={`p-4 rounded-full transition-all duration-300 ${isRecording ? 'bg-red-500 text-white scale-125 shadow-lg shadow-red-500/40' : isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}
+                onMouseDown={startRecording}
+                onMouseUp={stopRecording}
+                onMouseLeave={stopRecording}
+                className={`p-5 rounded-full transition-all duration-300 ${isRecording ? 'bg-red-500 text-white scale-125 shadow-lg shadow-red-500/40' : isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}
               >
                 <Mic size={24} />
               </motion.button>
             ) : (
-              <motion.button
-                key="send"
-                type="submit"
-                className="p-4 bg-gradient-to-br from-primary-500 to-primary-600 text-white rounded-full shadow-lg shadow-primary-500/20 hover:scale-110 active:scale-95 transition"
-              >
-                <Send size={24} />
-              </motion.button>
+              <motion.button key="send" type="submit" className="p-5 bg-primary-500 text-white rounded-full shadow-lg shadow-primary-500/30 active:scale-90 transition"><Send size={24} /></motion.button>
             )}
           </AnimatePresence>
         </form>
@@ -298,4 +280,3 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     </div>
   );
 }
-
