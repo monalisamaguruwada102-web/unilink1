@@ -523,11 +523,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
         }
       });
       
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        console.log('⚡ Connected to Kwekwe Poly Realtime Social Network feed!');
-      }
-    });
+    channel.subscribe();
   },
 
   updateUserProfile: async (userId, updates) => {
