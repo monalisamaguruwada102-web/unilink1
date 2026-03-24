@@ -2,8 +2,19 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
-import { LogOut, Save, Camera, User, ShieldCheck, Sparkles, BookOpen, X } from 'lucide-react';
+import { LogOut, Save, Camera, User, ShieldCheck, Sparkles, BookOpen, Map } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const KWEKWE_POLY_DEPARTMENTS = [
+  'Civil Engineering', 'Electrical Engineering', 'Mechanical Engineering',
+  'Business Studies', 'Accounting', 'Marketing', 'Computer Science',
+  'Information Technology', 'Fashion & Design', 'Agriculture',
+  'Construction', 'Auto Mechanics', 'Plumbing', 'Welding & Fabrication'
+];
+
+const CAMPUS_ZONES = [
+  'Block A', 'Block B', 'Block C', 'Workshop Area', 'Library', 'Main Gate', 'Sports Field', 'Dining Hall'
+];
 
 export default function Profile() {
   const { profile, session, signOut, fetchProfile } = useAuthStore();
@@ -14,6 +25,8 @@ export default function Profile() {
   const [course, setCourse] = useState('');
   const [bio, setBio] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [campusZone, setCampusZone] = useState('');
+  const [department, setDepartment] = useState('');
   const [isStudyBuddyMode, setIsStudyBuddyMode] = useState(false);
   
   const [uploading, setUploading] = useState(false);
@@ -32,6 +45,8 @@ export default function Profile() {
       setCourse(profile.course || '');
       setBio(profile.bio || '');
       setAvatarUrl(profile.avatar_url || '');
+      setCampusZone(profile.campus_zone || '');
+      setDepartment(profile.department || '');
       setIsStudyBuddyMode(profile.is_study_buddy_mode || false);
     }
   }, [profile]);
@@ -92,6 +107,8 @@ export default function Profile() {
         age: age ? parseInt(age) : null,
         course,
         bio,
+        campus_zone: campusZone,
+        department,
         is_study_buddy_mode: isStudyBuddyMode,
         updated_at: new Date().toISOString(),
       }).eq('id', session.user.id);
@@ -107,128 +124,96 @@ export default function Profile() {
   };
 
   const card = isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100 shadow-sm';
-  const inputStyle = isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-200 text-gray-900 font-bold text-xs shadow-inner';
+  const inputStyle = isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-200 text-gray-900 font-bold text-xs';
 
   return (
-    <div className={`min-h-screen pb-40 transition-colors duration-300 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <div className={`min-h-screen pb-36 transition-colors duration-300 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}>
       <div className={`sticky top-0 z-20 flex items-center justify-between px-5 py-4 border-b backdrop-blur-xl ${isDarkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/80 border-gray-100'}`}>
-        <h1 className="text-xl font-black tracking-tighter uppercase italic">Account</h1>
-        <button onClick={() => signOut()} className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-red-500 text-white font-black text-[9px] uppercase shadow-lg shadow-red-500/20 active:scale-95 transition">
-          <LogOut size={14} strokeWidth={3} /> Sign Out
+        <h1 className="text-xl font-black tracking-tighter uppercase italic">My Profile</h1>
+        <button onClick={() => signOut()} className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-red-500/10 text-red-500 font-bold text-[10px] uppercase">
+          <LogOut size={14} /> Out
         </button>
       </div>
 
       <form onSubmit={saveProfile} className="px-5 space-y-6 pt-6">
-        {/* Verification Status Banner */}
-        <div className={`p-6 rounded-[2.5rem] bg-gradient-to-br from-indigo-600 to-primary-600 shadow-xl shadow-indigo-500/20 text-white overflow-hidden relative`}>
-           <div className="relative z-10 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                 <div className="p-3 bg-white/10 rounded-2xl ring-4 ring-white/5"><Sparkles size={24} /></div>
+        <div className={`p-5 rounded-[2rem] bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/20`}>
+           <div className="flex items-center justify-between text-white">
+              <div className="flex items-center gap-3">
+                 <div className="p-3 bg-white/20 rounded-2xl"><Sparkles size={20} /></div>
                  <div>
-                    <p className="font-black text-[11px] uppercase tracking-widest text-white/50 mb-0.5">Campus Trust</p>
-                    <p className="text-sm font-black italic tracking-tighter uppercase">{profile?.is_verified ? 'Verified Sparkle ✓' : 'Unverified Student'}</p>
+                    <p className="font-black text-[10px] uppercase tracking-widest">Verification Status</p>
+                    <p className="text-[9px] font-bold opacity-70 uppercase leading-none">{profile?.is_verified ? 'Identity Verified ✓' : 'Status: Pending'}</p>
                  </div>
               </div>
               {!profile?.is_verified && (
-                <button type="button" onClick={() => setShowVerifyModal(true)} className="px-5 py-2.5 bg-white text-primary-600 font-black text-[10px] uppercase rounded-xl shadow-lg active:scale-95 transition">Verify Now</button>
+                <button type="button" onClick={() => setShowVerifyModal(true)} className="px-4 py-2 bg-white text-black font-black text-[10px] uppercase rounded-xl active:scale-95 transition">Verify</button>
               )}
            </div>
-           <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-white/5 rounded-full blur-2xl" />
         </div>
 
-        {/* Study Buddy Toggle */}
-        <div className={`p-5 rounded-[2.2rem] border ${card} flex items-center justify-between shadow-sm`}>
-           <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-2xl transition-colors ${isStudyBuddyMode ? 'bg-primary-500 text-white rotate-6 shadow-lg shadow-primary-500/30' : 'bg-gray-800 text-gray-500 ring-2 ring-gray-700'}`}>
-                 <BookOpen size={20} strokeWidth={3} />
+        <div className={`p-4 rounded-[2rem] border ${card} flex items-center justify-between`}>
+           <div className="flex items-center gap-3">
+              <div className={`p-3 rounded-2xl ${isStudyBuddyMode ? 'bg-indigo-500 text-white' : 'bg-gray-800 text-gray-400'}`}>
+                 <BookOpen size={20} />
               </div>
               <div>
-                 <p className="font-black text-[11px] uppercase tracking-[0.15em] mb-0.5">Study Buddy</p>
-                 <p className="text-[9px] font-bold opacity-40 uppercase tracking-tighter italic">Open for academic collabs</p>
+                 <p className="font-black text-[10px] uppercase tracking-widest">Study Buddy</p>
               </div>
            </div>
-           <button type="button" onClick={() => setIsStudyBuddyMode(!isStudyBuddyMode)} className={`w-14 h-8 rounded-full transition-all relative ${isStudyBuddyMode ? 'bg-primary-500 shadow-inner' : 'bg-gray-800 border border-gray-700'}`}>
-              <motion.div animate={{ x: isStudyBuddyMode ? 26 : 4 }} className="absolute top-1 w-6 h-6 rounded-full bg-white shadow-xl flex items-center justify-center">
-                 {isStudyBuddyMode && <div className="w-1.5 h-1.5 bg-primary-500 rounded-full" />}
-              </motion.div>
+           <button type="button" onClick={() => setIsStudyBuddyMode(!isStudyBuddyMode)} className={`w-12 h-7 rounded-full transition relative ${isStudyBuddyMode ? 'bg-indigo-500' : 'bg-gray-800'}`}>
+              <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-all ${isStudyBuddyMode ? 'left-6' : 'left-1'}`} />
            </button>
         </div>
 
-        {/* Avatar Section */}
-        <div className="flex flex-col items-center gap-4 py-6 bg-white/5 rounded-[3rem] border border-white/5">
-          <div className="relative group cursor-pointer" onClick={() => fileRef.current?.click()}>
-            <div className={`w-28 h-28 rounded-[2.5rem] overflow-hidden ring-4 ring-primary-500/20 shadow-2xl transition-transform group-hover:scale-105 active:scale-95 duration-500`}>
-              {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gray-800 flex items-center justify-center"><User size={40} className="text-white/10" /></div>}
+        <div className="flex flex-col items-center gap-4 py-4">
+          <div className="relative">
+            <div className={`w-24 h-24 rounded-[2rem] overflow-hidden ring-4 ring-primary-500/20 shadow-2xl`}>
+              {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gray-800" />}
             </div>
-            <div className="absolute -bottom-2 -right-2 w-11 h-11 bg-primary-500 rounded-[1.2rem] flex items-center justify-center text-white border-4 border-gray-950 shadow-xl group-hover:rotate-12 transition-all">
-              <Camera size={20} strokeWidth={2.5} />
-            </div>
+            <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="absolute -bottom-2 -right-2 w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center text-white border-4 border-gray-950">
+              <Camera size={16} />
+            </button>
           </div>
-          <p className="text-[9px] font-black uppercase tracking-[0.3em] opacity-30 mt-2 italic">Student Avatar</p>
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUploadAvatar} />
         </div>
 
-        {/* Form Fields */}
-        <div className={`p-8 rounded-[3rem] border space-y-5 ${card}`}>
-          <div className="space-y-4">
-             <div className="space-y-1.5 px-1">
-                <p className="text-[9px] font-black uppercase tracking-[0.25em] opacity-30 italic">Real Name</p>
-                <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Takunda J" className={`w-full px-6 py-4 rounded-2xl border outline-none font-bold text-sm focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all ${inputStyle}`} />
-             </div>
-             
-             <div className="grid grid-cols-2 gap-4 px-1">
-                <div className="space-y-1.5">
-                   <p className="text-[9px] font-black uppercase tracking-[0.25em] opacity-30 italic">Age</p>
-                   <input value={age} onChange={e => setAge(e.target.value)} type="number" placeholder="21" className={`w-full px-6 py-4 rounded-2xl border outline-none font-bold text-sm focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all ${inputStyle}`} />
-                </div>
-                <div className="space-y-1.5">
-                   <p className="text-[9px] font-black uppercase tracking-[0.25em] opacity-30 italic">Course</p>
-                   <input value={course} onChange={e => setCourse(e.target.value)} placeholder="Eng / IT" className={`w-full px-6 py-4 rounded-2xl border outline-none font-bold text-sm focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all ${inputStyle}`} />
-                </div>
-             </div>
-
-             <div className="space-y-1.5 px-1 pt-2">
-                <p className="text-[9px] font-black uppercase tracking-[0.25em] opacity-30 italic">Campus Bio</p>
-                <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Low energy but high matching potential..." className={`w-full h-32 px-6 py-4 rounded-3xl border outline-none font-bold text-sm resize-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all ${inputStyle}`} />
-             </div>
+        <div className={`p-6 rounded-[2.5rem] border space-y-4 ${card}`}>
+          <div className="space-y-3">
+             <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 flex items-center gap-2"><User size={12} /> Personal</p>
+             <input value={name} onChange={e => setName(e.target.value)} placeholder="Display Name" className={`w-full px-5 py-4 rounded-xl border outline-none ${inputStyle}`} />
+             <input value={age} onChange={e => setAge(e.target.value)} type="number" placeholder="Age" className={`w-full px-5 py-4 rounded-xl border outline-none ${inputStyle}`} />
+          </div>
+          <div className="space-y-3 pt-4 border-t border-gray-800">
+             <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 flex items-center gap-2"><Map size={12} /> Campus Location</p>
+             <select value={campusZone} onChange={e => setCampusZone(e.target.value)} className={`w-full px-5 py-4 rounded-xl border outline-none ${inputStyle}`}>
+                <option value="">Campus Zone</option>
+                {CAMPUS_ZONES.map(z => <option key={z} value={z}>{z}</option>)}
+             </select>
+             <select value={department} onChange={e => setDepartment(e.target.value)} className={`w-full px-5 py-4 rounded-xl border outline-none ${inputStyle}`}>
+                <option value="">Department</option>
+                {KWEKWE_POLY_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+             </select>
           </div>
         </div>
 
-        <button type="submit" disabled={saving} className={`w-full py-6 rounded-[2.5rem] font-black text-xs uppercase tracking-[0.25em] transition-all flex items-center justify-center gap-3 shadow-2xl active:scale-[0.98] ${saved ? 'bg-green-500 text-white rotate-0' : 'bg-primary-500 text-white shadow-primary-500/40 hover:-translate-y-1'}`}>
-           {saving ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save size={20} strokeWidth={2.5} />} 
-           {saving ? 'Processing...' : saved ? 'Data Sync Complete ✓' : 'Save Connection'}
+        <button type="submit" disabled={saving} className={`w-full py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.15em] transition flex items-center justify-center gap-3 ${saved ? 'bg-green-500' : 'bg-primary-500 text-white'}`}>
+          <Save size={18} /> {saving ? 'Wait...' : saved ? 'Done' : 'Save Profile'}
         </button>
       </form>
 
-      {/* Verification ID Upload Fragment */}
       <AnimatePresence>
         {showVerifyModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-2xl flex items-center justify-center p-8">
-             <div className="bg-gray-900 border border-blue-500/20 w-full max-w-sm rounded-[3rem] p-10 text-center shadow-[0_0_50px_rgba(59,130,246,0.2)]">
-                <div className="w-20 h-20 bg-blue-500/10 rounded-[2rem] flex items-center justify-center mx-auto mb-8 text-blue-500 ring-4 ring-blue-500/5 anim-pulse">
-                  <ShieldCheck size={48} />
-                </div>
-                <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter mb-4">Identity Audit</h2>
-                <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest leading-relaxed mb-10 px-4">Upload your Poly ID to earn the Sparkle badget and boost match priority.</p>
-                
-                <div className={`py-12 border-4 border-dashed rounded-[2rem] mb-10 transition-all ${idFile ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20' : 'border-white/5 bg-white/5'}`}>
-                   {idFile ? (
-                     <div className="relative inline-block">
-                        <img src={URL.createObjectURL(idFile)} className="h-24 rounded-2xl border-2 border-white/20 shadow-2xl" alt="" />
-                        <button onClick={() => setIdFile(null)} className="absolute -top-3 -right-3 w-8 h-8 bg-red-500 rounded-full flex items-center justify-center text-white border-2 border-gray-950"><X size={14} /></button>
-                     </div>
-                   ) : (
-                     <button type="button" onClick={() => idRef.current?.click()} className="flex flex-col items-center gap-4 mx-auto group">
-                        <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform"><Camera size={24} className="text-white/20 group-hover:text-blue-400" /></div>
-                        <span className="text-[9px] font-black text-white/20 uppercase tracking-[0.2em] group-hover:text-blue-400">Scan Student ID</span>
-                     </button>
-                   )}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6">
+             <div className="bg-gray-900 border border-blue-500/20 w-full max-w-sm rounded-[2.5rem] p-8 text-center">
+                <ShieldCheck size={48} className="mx-auto mb-6 text-blue-500" />
+                <h2 className="text-xl font-black text-white italic uppercase tracking-tighter mb-4">Verification</h2>
+                <div className="py-8 border-2 border-dashed border-blue-500/10 rounded-2xl mb-6 bg-blue-500/5">
+                   {idFile ? <img src={URL.createObjectURL(idFile)} className="h-20 mx-auto rounded-lg" alt="" /> : <button onClick={() => idRef.current?.click()} className="text-[10px] font-black text-blue-400 uppercase">Upload Student ID</button>}
                 </div>
                 <input ref={idRef} type="file" accept="image/*" className="hidden" onChange={e => setIdFile(e.target.files?.[0] || null)} />
-                
-                <div className="flex gap-4">
-                   <button onClick={() => setShowVerifyModal(false)} className="flex-1 py-5 rounded-2xl bg-white/5 text-white/30 font-black text-[9px] uppercase tracking-widest hover:bg-white/10 transition">Back</button>
-                   <button onClick={handleVerifyId} disabled={!idFile || uploading} className="flex-1 py-5 rounded-2xl bg-blue-500 text-white font-black text-[9px] uppercase tracking-widest shadow-xl shadow-blue-500/40 active:scale-95 transition disabled:opacity-30">Verify Securely</button>
+                <div className="flex gap-3">
+                   <button onClick={() => setShowVerifyModal(false)} className="flex-1 py-4 rounded-xl bg-white/5 text-white/40 font-black text-[10px] uppercase">Back</button>
+                   <button onClick={handleVerifyId} disabled={!idFile || uploading} className="flex-1 py-4 rounded-xl bg-blue-500 text-white font-black text-[10px] uppercase shadow-lg shadow-blue-500/30">Submit</button>
                 </div>
              </div>
           </motion.div>
