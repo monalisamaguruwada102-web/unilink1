@@ -12,6 +12,7 @@ export default function Profile() {
   const [course, setCourse] = useState('');
   const [bio, setBio] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [isLocationEnabled, setIsLocationEnabled] = useState(false);
   
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -27,6 +28,7 @@ export default function Profile() {
       setCourse(profile.course || '');
       setBio(profile.bio || '');
       setAvatarUrl(profile.avatar_url || '');
+      setIsLocationEnabled(profile.is_location_enabled || false);
     }
   }, [profile]);
 
@@ -69,7 +71,7 @@ export default function Profile() {
     if (!session) return;
     setSaving(true);
 
-    const updates = {
+    const updates: Record<string, any> = {
       id: session.user.id,
       email: session.user.email,
       name,
@@ -78,10 +80,28 @@ export default function Profile() {
       course: course || '',
       bio: bio || '',
       avatar_url: avatarUrl || '',
+      is_location_enabled: isLocationEnabled,
       updated_at: new Date().toISOString(),
     };
 
     try {
+      if (isLocationEnabled && "geolocation" in navigator) {
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+          });
+          updates.latitude = position.coords.latitude;
+          updates.longitude = position.coords.longitude;
+          updates.location_updated_at = new Date().toISOString();
+        } catch (geoErr) {
+          console.warn('Geolocation failed:', geoErr);
+          // Proceed saving profile without strict location if denied or failed
+        }
+      } else if (!isLocationEnabled) {
+        updates.latitude = null;
+        updates.longitude = null;
+      }
+
       const { error } = await supabase.from('users').upsert(updates);
       if (error) throw error;
       await fetchProfile(session.user.id);
@@ -191,6 +211,27 @@ export default function Profile() {
                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-primary-500 outline-none transition"
                />
              </div>
+           </div>
+        </div>
+
+        {/* Location Privacy */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
+           <div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase tracking-wider">
+             <BookOpen size={14} /> Privacy & Discovery
+           </div>
+           
+           <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+             <div>
+               <h4 className="text-sm font-bold text-gray-900">Campus Hotspot Locator</h4>
+               <p className="text-xs text-gray-500 mt-1 max-w-[200px]">Let others see when you are on campus to trigger vibes and meetups.</p>
+             </div>
+             <button
+                type="button"
+                onClick={() => setIsLocationEnabled(!isLocationEnabled)}
+                className={`w-14 h-8 rounded-full transition-all relative ${isLocationEnabled ? 'bg-primary-500 shadow-inner' : 'bg-gray-200'}`}
+             >
+                <div className={`w-6 h-6 bg-white rounded-full absolute top-1 shadow-sm transition-all ${isLocationEnabled ? 'left-7' : 'left-1'}`} />
+             </button>
            </div>
         </div>
 

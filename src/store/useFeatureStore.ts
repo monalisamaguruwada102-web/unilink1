@@ -139,10 +139,11 @@ interface FeatureState {
   clearNotifications: (userId: string) => Promise<void>;
   joinGroup: (groupId: string, userId: string) => Promise<void>;
 
-  addToCrushList: (userId: string, crushId: string) => Promise<boolean>; // Returns true if it's a mutual crush
+  addToCrushList: (userId: string, crushId: string) => Promise<boolean>; 
   voteInStoryPoll: (storyId: string, userId: string, optionIndex: number) => Promise<void>;
   submitStoryWithPoll: (userId: string, userName: string, imageUrl: string, question: string, options: string[]) => Promise<void>;
   deletePost: (postId: string) => Promise<void>;
+  createPost: (userId: string, content: string, imageUrl?: string) => Promise<void>;
 }
 
 export const useFeatureStore = create<FeatureState>((set, get) => ({
@@ -224,6 +225,15 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     set(state => ({ posts: state.posts.filter(p => p.id !== postId) }));
   },
 
+  createPost: async (userId, content, imageUrl) => {
+    const insertData: any = { user_id: userId, content };
+    if (imageUrl) insertData.image_url = imageUrl;
+    
+    const { data, error } = await supabase.from('posts').insert(insertData).select('*, users(name, avatar_url, course)').single();
+    if (error) throw error;
+    if (data) set(state => ({ posts: [{ ...data, comment_count: 0, is_liked: false }, ...state.posts] }));
+  },
+
   reactToStory: async (storyId, ownerId, userId, emoji) => {
     await supabase.from('story_reactions').insert({ story_id: storyId, user_id: userId, emoji });
     if (ownerId !== userId) {
@@ -274,7 +284,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     }
   },
 
-  submitStoryWithPoll: async (userId, userName, imageUrl, question, options) => {
+  submitStoryWithPoll: async (userId: string, userName: string, imageUrl: string, question: string, options: string[]) => {
      const { data } = await supabase.from('stories').insert({ user_id: userId, image_url: imageUrl, poll_question: question, poll_options: options }).select().single();
      if (data) set((state) => ({ stories: [{ ...data, user_name: userName, is_viewed: false }, ...state.stories] }));
   },
@@ -406,6 +416,10 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     if (notificationsRes.data) set({ notifications: notificationsRes.data });
     if (crushRes.data) set({ crushList: crushRes.data.map((c: any) => c.crush_id) });
     if (pollsRes.data) set({ storyPollResponses: pollsRes.data });
+    
+    if (postsRes.error) {
+      console.error('Failed to fetch posts:', postsRes.error);
+    }
     
     if (postsRes.data) {
       set({ posts: postsRes.data.map((p: any) => ({
