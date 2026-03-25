@@ -21,6 +21,7 @@ export default function Feed() {
   const [postFile, setPostFile] = useState<File | null>(null);
   const [postPreview, setPostPreview] = useState('');
   const [commentText, setCommentText] = useState('');
+  const [activeComments, setActiveComments] = useState<any[]>([]);
   const [confessionText, setConfessionText] = useState('');
   const [uploading, setUploading] = useState(false);
 
@@ -37,11 +38,19 @@ export default function Feed() {
   const { session, profile } = useAuthStore();
   const { 
     stories, posts, isDarkMode, confessions, notifications, currentPoll, onlineCount,
-    fetchFeatures, 
+    fetchFeatures, fetchComments,
     likePost, unlikePost, addComment, viewStory, reactToStory,
     submitStoryWithPoll, addStory, voteInStoryPoll, deletePost, createPost,
     markNotificationsRead, clearNotifications, submitConfession, createPoll
   } = useFeatureStore();
+
+  useEffect(() => {
+    if (activeCommentsPost) {
+       fetchComments(activeCommentsPost.id).then(setActiveComments);
+    } else {
+       setActiveComments([]);
+    }
+  }, [activeCommentsPost, fetchComments]);
 
   useEffect(() => {
     setLoading(true);
@@ -121,6 +130,7 @@ export default function Feed() {
     if (!session || !commentText.trim() || !activeCommentsPost) return;
     await addComment(activeCommentsPost.id, session.user.id, activeCommentsPost.user_id, commentText);
     setCommentText('');
+    fetchComments(activeCommentsPost.id).then(setActiveComments);
   };
   
   const handleAddConfession = async () => {
@@ -332,7 +342,7 @@ export default function Feed() {
                         <Trash2 size={16} />
                       </button>
                     )}
-                    <button className="p-2 opacity-30"><MoreVertical size={16} /></button>
+                    <button onClick={() => alert(post.user_id === session?.user?.id ? 'Options: You can delete this post via the trash icon.' : 'Post reported. Thanks for keeping the community safe!')} className="p-2 opacity-30 hover:opacity-100 transition-opacity"><MoreVertical size={16} /></button>
                   </div>
                </div>
 
@@ -368,7 +378,16 @@ export default function Feed() {
                         <span className="text-[11px] font-black">{post.comment_count || 0}</span>
                      </button>
                   </div>
-                  <button className="p-3 bg-indigo-500/10 text-indigo-500 rounded-2xl">
+                  <button 
+                    onClick={() => {
+                      if (navigator.share) {
+                        navigator.share({ title: 'Poly Link', text: post.content, url: window.location.href }).catch(console.error);
+                      } else {
+                        alert('Link copied to clipboard!');
+                      }
+                    }}
+                    className="p-3 bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white transition-all active:scale-95 rounded-2xl"
+                  >
                      <Send size={18} strokeWidth={2.5} />
                   </button>
                </div>
@@ -632,9 +651,19 @@ export default function Feed() {
                  </div>
                  
                  <div className="flex-1 overflow-y-auto p-8 space-y-6">
-                    {activeCommentsPost.comment_count === 0 && <p className="text-center py-12 opacity-30 font-black text-[10px] uppercase tracking-[0.2em]">No Vibes Yet. <br/>Be the first!</p>}
-                    {/* Comments would normally be fetched here or passed in. 
-                        For brevity, focusing on the UI refinement. */}
+                    {(activeCommentsPost.comment_count === 0 && activeComments.length === 0) && <p className="text-center py-12 opacity-30 font-black text-[10px] uppercase tracking-[0.2em]">No Vibes Yet. <br/>Be the first!</p>}
+                    {activeComments.map((c: any) => (
+                       <div key={c.id} className="flex gap-4">
+                          <img src={c.users?.avatar_url || ''} className="w-10 h-10 rounded-full bg-gray-200 object-cover" />
+                          <div className="flex-1 bg-gray-500/5 p-4 rounded-2xl">
+                             <div className="flex justify-between items-center mb-1">
+                                <p className="font-black text-xs">{c.users?.name || 'Student'}</p>
+                                <span className="text-[8px] opacity-40 uppercase tracking-widest">{new Date(c.created_at).toLocaleDateString()}</span>
+                             </div>
+                             <p className="text-sm opacity-80">{c.content}</p>
+                          </div>
+                       </div>
+                    ))}
                  </div>
 
                  <div className="p-8 pb-12 border-t border-gray-500/10 flex gap-4 items-center">
