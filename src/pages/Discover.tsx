@@ -35,8 +35,15 @@ export default function Discover() {
       // Base query
       let query = supabase
         .from('users')
-        .select('id, name, age, course, bio, avatar_url, college, latitude, longitude, is_study_buddy_mode, department, campus_zone, is_verified')
+        .select('id, name, age, course, bio, avatar_url, college, latitude, longitude, is_study_buddy_mode, department, campus_zone, is_verified, gender')
         .neq('id', session.user.id);
+
+      // Gender Matching
+      if (myProfile?.gender === 'male') {
+        query = query.eq('gender', 'female');
+      } else if (myProfile?.gender === 'female') {
+        query = query.eq('gender', 'male');
+      }
 
       if (discoveryMode === 'study') {
         query = query.eq('is_study_buddy_mode', true);

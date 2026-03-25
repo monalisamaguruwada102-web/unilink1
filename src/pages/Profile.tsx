@@ -12,6 +12,7 @@ export default function Profile() {
   const [course, setCourse] = useState('');
   const [bio, setBio] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [gender, setGender] = useState('');
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
   
   const [uploading, setUploading] = useState(false);
@@ -28,6 +29,7 @@ export default function Profile() {
       setCourse(profile.course || '');
       setBio(profile.bio || '');
       setAvatarUrl(profile.avatar_url || '');
+      setGender(profile.gender || '');
       setIsLocationEnabled(profile.is_location_enabled || false);
     }
   }, [profile]);
@@ -80,6 +82,7 @@ export default function Profile() {
       course: course || '',
       bio: bio || '',
       avatar_url: avatarUrl || '',
+      gender: gender || '',
       is_location_enabled: isLocationEnabled,
       updated_at: new Date().toISOString(),
     };
@@ -170,8 +173,20 @@ export default function Profile() {
                  value={name}
                  onChange={e => setName(e.target.value)}
                  placeholder="Full Name"
-                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-primary-500 outline-none transition"
+                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition"
                />
+             </div>
+             <div>
+               <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">Gender</label>
+               <select
+                 value={gender}
+                 onChange={e => setGender(e.target.value)}
+                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition"
+               >
+                 <option value="" className="text-gray-500">Select Gender...</option>
+                 <option value="male">Male</option>
+                 <option value="female">Female</option>
+               </select>
              </div>
              <div>
                <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">Age</label>
@@ -180,7 +195,7 @@ export default function Profile() {
                  onChange={e => setAge(e.target.value)}
                  type="number"
                  placeholder="Age"
-                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-primary-500 outline-none transition"
+                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition"
                />
              </div>
            </div>
@@ -199,7 +214,7 @@ export default function Profile() {
                  value={college}
                  onChange={e => setCollege(e.target.value)}
                  placeholder="e.g. Kwekwe Polytechnic"
-                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-primary-500 outline-none transition"
+                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition"
                />
              </div>
              <div>
@@ -208,7 +223,7 @@ export default function Profile() {
                  value={course}
                  onChange={e => setCourse(e.target.value)}
                  placeholder="e.g. Computer Science"
-                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-primary-500 outline-none transition"
+                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition"
                />
              </div>
            </div>
@@ -246,7 +261,7 @@ export default function Profile() {
             placeholder="Tell us about yourself..."
             rows={4}
             maxLength={200}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium resize-none focus:ring-2 focus:ring-primary-500 outline-none transition"
+            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-red-500 resize-none focus:ring-2 focus:ring-primary-500 outline-none transition"
           />
           <p className="text-[10px] text-gray-400 text-right">{bio.length}/200</p>
         </div>

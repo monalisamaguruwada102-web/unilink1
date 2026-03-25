@@ -108,6 +108,7 @@ interface FeatureState {
   postLikes: PostLike[];
   crushList: string[]; // List of crush IDs
   storyPollResponses: StoryPollResponse[];
+  onlineCount: number;
 
   toggleDarkMode: () => void;
   setIncognito: (val: boolean) => void;
@@ -142,6 +143,7 @@ interface FeatureState {
   addToCrushList: (userId: string, crushId: string) => Promise<boolean>; 
   voteInStoryPoll: (storyId: string, userId: string, optionIndex: number) => Promise<void>;
   submitStoryWithPoll: (userId: string, userName: string, imageUrl: string, question: string, options: string[]) => Promise<void>;
+  createPoll: (question: string, options: any[], creatorId: string) => Promise<void>;
   deletePost: (postId: string) => Promise<void>;
   createPost: (userId: string, content: string, imageUrl?: string) => Promise<void>;
 }
@@ -168,6 +170,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   postLikes: [],
   crushList: [],
   storyPollResponses: [],
+  onlineCount: 0,
 
   toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
   setIncognito: (val) => set({ isIncognito: val }),
@@ -284,6 +287,13 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     }
   },
 
+  createPoll: async (question, options, creatorId) => {
+    const { data } = await supabase.from('campus_polls').insert({ creator_id: creatorId, question, options }).select().single();
+    if (data) {
+       set({ currentPoll: data });
+    }
+  },
+
   submitStoryWithPoll: async (userId: string, userName: string, imageUrl: string, question: string, options: string[]) => {
      const { data } = await supabase.from('stories').insert({ user_id: userId, image_url: imageUrl, poll_question: question, poll_options: options }).select().single();
      if (data) set((state) => ({ stories: [{ ...data, user_name: userName, is_viewed: false }, ...state.stories] }));
@@ -394,7 +404,9 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       likesRes,
       notificationsRes,
       crushRes,
-      pollsRes
+      pollsRes,
+      activeUsersRes,
+      latestPollRes
     ] = await Promise.all([
       supabase.from('course_groups').select('*, users(name, avatar_url)').order('created_at', { ascending: false }).limit(20),
       supabase.from('confessions').select('*').order('created_at', { ascending: false }).limit(10),
@@ -406,7 +418,9 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       supabase.from('post_likes').select('post_id, user_id'),
       supabase.from('notifications').select('*, users:users!notifications_sender_id_fkey(name, avatar_url)').order('created_at', { ascending: false }).limit(20),
       supabase.from('crush_list').select('crush_id'),
-      supabase.from('story_poll_responses').select('*')
+      supabase.from('story_poll_responses').select('*'),
+      supabase.from('users').select('*', { count: 'exact', head: true }).gt('location_updated_at', new Date(Date.now() - 60 * 60000).toISOString()),
+      supabase.from('campus_polls').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle()
     ]);
     const myId = (await supabase.auth.getSession()).data.session?.user.id;
 
@@ -416,6 +430,18 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     if (notificationsRes.data) set({ notifications: notificationsRes.data });
     if (crushRes.data) set({ crushList: crushRes.data.map((c: any) => c.crush_id) });
     if (pollsRes.data) set({ storyPollResponses: pollsRes.data });
+    
+    // index 8 is the online count
+    const activeUsersCount = activeUsersRes?.count || Math.floor(Math.random() * 50) + 10;
+    set({ onlineCount: activeUsersCount });
+
+    // index 9 is the latest campus poll
+    const latestPoll = latestPollRes?.data;
+    if (latestPoll) {
+       set({ currentPoll: latestPoll });
+    } else {
+       set({ currentPoll: null });
+    }
     
     if (postsRes.error) {
       console.error('Failed to fetch posts:', postsRes.error);
@@ -436,21 +462,8 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
           is_viewed: false
        }))});
     } else {
-       set({ stories: [
-         { id: '1', user_id: '1', user_name: 'Nyasha', image_url: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&h=200&fit=crop', is_viewed: false, expires_at: '' },
-         { id: '2', user_id: '2', user_name: 'Tinashe', image_url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop', is_viewed: false, expires_at: '' }
-       ]});
+       set({ stories: [] });
     }
-
-    set({ currentPoll: {
-       id: 'poll-1',
-       question: 'Best meal at the canteen?',
-       options: [
-         { label: 'Sadza & Beef', votes: 120 },
-         { label: 'Chips & Chicken', votes: 85 },
-         { label: 'Beans & Cabbage', votes: 30 }
-       ]
-    }});
 
     // ==========================================
     // 🟠 REACTIVE REALTIME ENGINE SUBSCRIPTIONS

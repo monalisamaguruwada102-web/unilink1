@@ -83,3 +83,22 @@ DROP POLICY IF EXISTS "Anyone can see groups" ON course_groups;
 CREATE POLICY "Anyone can see groups" ON course_groups FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Authenticated can create groups" ON course_groups;
 CREATE POLICY "Authenticated can create groups" ON course_groups FOR INSERT WITH CHECK (auth.uid() = creator_id);
+
+-- 6. CAMPUS POLLS
+CREATE TABLE IF NOT EXISTS campus_polls (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  creator_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  question TEXT NOT NULL,
+  options JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '24 hours'
+);
+ALTER TABLE campus_polls ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can view polls" ON campus_polls;
+CREATE POLICY "Anyone can view polls" ON campus_polls FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Users can create polls" ON campus_polls;
+CREATE POLICY "Users can create polls" ON campus_polls FOR INSERT WITH CHECK (auth.uid() = creator_id);
+
+-- 7. CLEAR PERMANENT NOTIFICATIONS (Allow Delete)
+DROP POLICY IF EXISTS "Users can delete own notifications" ON notifications;
+CREATE POLICY "Users can delete own notifications" ON notifications FOR DELETE USING (auth.uid() = user_id);

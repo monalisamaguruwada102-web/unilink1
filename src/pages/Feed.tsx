@@ -11,6 +11,8 @@ export default function Feed() {
   const [showCreateStory, setShowCreateStory] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showConfessionModal, setShowConfessionModal] = useState(false);
+  const [showPollModal, setShowPollModal] = useState(false);
   const [activeStory, setActiveStory] = useState<any>(null);
   const [activeCommentsPost, setActiveCommentsPost] = useState<any>(null);
 
@@ -19,6 +21,7 @@ export default function Feed() {
   const [postFile, setPostFile] = useState<File | null>(null);
   const [postPreview, setPostPreview] = useState('');
   const [commentText, setCommentText] = useState('');
+  const [confessionText, setConfessionText] = useState('');
   const [uploading, setUploading] = useState(false);
 
   // Story state
@@ -33,11 +36,11 @@ export default function Feed() {
   
   const { session, profile } = useAuthStore();
   const { 
-    stories, posts, isDarkMode, confessions, notifications, currentPoll,
+    stories, posts, isDarkMode, confessions, notifications, currentPoll, onlineCount,
     fetchFeatures, 
     likePost, unlikePost, addComment, viewStory, reactToStory,
     submitStoryWithPoll, addStory, voteInStoryPoll, deletePost, createPost,
-    markNotificationsRead, clearNotifications
+    markNotificationsRead, clearNotifications, submitConfession, createPoll
   } = useFeatureStore();
 
   useEffect(() => {
@@ -120,6 +123,26 @@ export default function Feed() {
     setCommentText('');
   };
   
+  const handleAddConfession = async () => {
+    if (!confessionText.trim()) return;
+    await submitConfession(confessionText, []);
+    setConfessionText('');
+    setShowConfessionModal(false);
+  };
+  
+  const handleCreatePoll = async () => {
+    if (!pollQuestion.trim() || !session) return;
+    const validOptions = pollOptions.filter(o => o.trim()).map(o => ({ label: o, votes: 0 }));
+    if (validOptions.length < 2) {
+      alert("At least 2 options required");
+      return;
+    }
+    await createPoll(pollQuestion, validOptions, session.user.id);
+    setPollQuestion('');
+    setPollOptions(['Yes', 'No']);
+    setShowPollModal(false);
+  };
+  
   const handleDeletePost = (postId: string) => {
     if (!confirm('Are you sure you want to delete this post?')) return;
     deletePost(postId).catch((err: any) => alert(err.message));
@@ -176,7 +199,7 @@ export default function Feed() {
                     <Sparkles size={10} /> {profile?.course || 'No Course Set'}
                   </div>
                   <div className="px-3 py-1.5 rounded-xl bg-green-500/10 text-green-500 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 border border-green-500/10">
-                    <Users size={10} /> 120 Online
+                    <Users size={10} /> {onlineCount} Online
                   </div>
                </div>
             </div>
@@ -213,7 +236,13 @@ export default function Feed() {
            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] opacity-40 flex items-center gap-2">
               <TrendingUp size={14} className="text-indigo-500" /> Campus Pulse
            </h3>
-           <div className="h-[1px] flex-1 bg-current opacity-5 mx-4" />
+           <div className="flex items-center gap-2">
+             {profile?.is_verified && (
+               <button onClick={() => setShowPollModal(true)} className="text-[9px] font-black uppercase text-indigo-500 bg-indigo-500/10 px-3 py-1.5 rounded-xl">
+                 + Add Poll
+               </button>
+             )}
+           </div>
         </div>
         
         <div className="grid grid-cols-1 gap-4">
@@ -237,7 +266,7 @@ export default function Feed() {
 
            {/* Secrets Marquee */}
            {confessions.length > 0 && (
-              <div className={`p-5 rounded-[2.5rem] border flex items-center gap-4 ${isDarkMode ? 'bg-pink-500/5 border-pink-500/10' : 'bg-pink-50 border-pink-100'}`}>
+              <div className={`p-5 rounded-[2.5rem] border flex items-center gap-4 relative ${isDarkMode ? 'bg-pink-500/5 border-pink-500/10' : 'bg-pink-50 border-pink-100'}`}>
                  <div className="w-12 h-12 rounded-2xl bg-pink-500 text-white flex items-center justify-center shadow-lg shadow-pink-500/20 shrink-0">
                     <Hash size={20} />
                  </div>
@@ -245,6 +274,9 @@ export default function Feed() {
                     <p className="text-[9px] font-black uppercase text-pink-600 mb-1 opacity-60">Trending Secret</p>
                     <p className="text-xs font-bold italic truncate opacity-80">"{confessions[0].content}"</p>
                  </div>
+                 <button onClick={() => setShowConfessionModal(true)} className="absolute top-4 right-4 bg-pink-500/10 text-pink-500 p-2 rounded-xl active:scale-95 transition">
+                   <Plus size={16} />
+                 </button>
               </div>
            )}
         </div>
@@ -398,6 +430,67 @@ export default function Feed() {
                     className="w-full py-6 bg-primary-500 text-white rounded-[2.3rem] font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-primary-500/30 disabled:opacity-50 active:scale-95 transition-all"
                   >
                     {uploading ? 'Synching Pulse...' : 'Post Vibration'}
+                  </button>
+               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ➕ ADD CONFESSION MODAL */}
+      <AnimatePresence>
+        {showConfessionModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-md flex items-end">
+            <motion.div 
+               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+               className={`w-full max-h-[90vh] rounded-t-[3.5rem] flex flex-col ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}
+            >
+               <div className="p-8 flex items-center justify-between border-b border-gray-500/10">
+                  <h2 className="text-xl font-black italic tracking-tighter uppercase text-pink-500">Share a Secret</h2>
+                  <button onClick={() => setShowConfessionModal(false)} className="p-3 bg-gray-500/10 rounded-2xl"><X size={20} /></button>
+               </div>
+               <div className="flex-1 overflow-y-auto p-8">
+                  <textarea 
+                     value={confessionText}
+                     onChange={e => setConfessionText(e.target.value)}
+                     placeholder="Whisper something anonymously..."
+                     className="w-full bg-transparent border-none outline-none text-lg font-medium resize-none min-h-[150px]"
+                  />
+               </div>
+               <div className="p-8 border-t border-gray-500/10 space-y-4 pb-12">
+                  <button onClick={handleAddConfession} disabled={!confessionText.trim()} className="w-full py-6 bg-pink-500 text-white rounded-[2.3rem] font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-pink-500/30 disabled:opacity-50 active:scale-95 transition-all">
+                    Drop Secret
+                  </button>
+               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* ➕ ADD POLL MODAL */}
+      <AnimatePresence>
+        {showPollModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-md flex items-end">
+            <motion.div 
+               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+               className={`w-full max-h-[90vh] rounded-t-[3.5rem] flex flex-col ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}
+            >
+               <div className="p-8 flex items-center justify-between border-b border-gray-500/10">
+                  <h2 className="text-xl font-black italic tracking-tighter uppercase text-indigo-500">Create Campus Poll</h2>
+                  <button onClick={() => setShowPollModal(false)} className="p-3 bg-gray-500/10 rounded-2xl"><X size={20} /></button>
+               </div>
+               <div className="flex-1 overflow-y-auto p-8 space-y-4">
+                  <input placeholder="Poll Question..." value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} className="w-full bg-transparent text-xl font-black mb-6 border-none outline-none italic tracking-tighter" />
+                  {pollOptions.map((o, i) => (
+                    <input key={i} value={o} onChange={e => { const no = [...pollOptions]; no[i] = e.target.value; setPollOptions(no); }} className={`w-full p-5 rounded-2xl border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'} text-sm font-bold mb-3 outline-none focus:border-indigo-500 transition`} placeholder={`Option ${i+1}`} />
+                  ))}
+                  {pollOptions.length < 4 && (
+                     <button onClick={() => setPollOptions([...pollOptions, ''])} className="w-full py-4 text-[10px] font-black uppercase text-indigo-500 border border-indigo-500/20 border-dashed rounded-2xl">+ Add Option</button>
+                  )}
+               </div>
+               <div className="p-8 border-t border-gray-500/10 pb-12">
+                  <button onClick={handleCreatePoll} disabled={!pollQuestion.trim() || pollOptions.filter(o=>o.trim()).length < 2} className="w-full py-6 bg-indigo-500 text-white rounded-[2.3rem] font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-indigo-500/30 disabled:opacity-50 active:scale-95 transition-all">
+                    Launch Poll
                   </button>
                </div>
             </motion.div>
