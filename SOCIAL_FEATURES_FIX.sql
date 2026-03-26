@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS confession_reactions (
 ALTER TABLE confession_reactions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Anyone can view confession reactions" ON confession_reactions;
 DROP POLICY IF EXISTS "Users can react to confessions" ON confession_reactions;
+DROP POLICY IF EXISTS "Users can update own confession reactions" ON confession_reactions;
+DROP POLICY IF EXISTS "Users can delete own confession reactions" ON confession_reactions;
+
 CREATE POLICY "Anyone can view confession reactions" ON confession_reactions FOR SELECT USING (true);
 CREATE POLICY "Users can react to confessions" ON confession_reactions FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own confession reactions" ON confession_reactions FOR UPDATE USING (auth.uid() = user_id);
@@ -35,6 +38,7 @@ CREATE TABLE IF NOT EXISTS confession_comments (
 ALTER TABLE confession_comments ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Anyone can view confession comments" ON confession_comments;
 DROP POLICY IF EXISTS "Users can post confession comments" ON confession_comments;
+
 CREATE POLICY "Anyone can view confession comments" ON confession_comments FOR SELECT USING (true);
 CREATE POLICY "Users can post confession comments" ON confession_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
 
