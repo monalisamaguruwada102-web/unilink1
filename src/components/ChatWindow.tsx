@@ -625,14 +625,14 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
           </button>
 
           {/* Input */}
-          <div className={`flex-1 rounded-2xl flex items-center px-4 transition-all duration-300 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'} ${isRecording ? 'ring-2 ring-red-500' : ''}`}>
+          <div className={`flex-1 rounded-2xl flex items-center px-4 transition-all duration-300 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'} ${isRecording ? 'ring-2 ring-red-500/50' : ''}`}>
             <input
               type="text"
               value={input}
               disabled={isRecording}
               onChange={handleInputChange}
-              placeholder={isRecording ? `🔴 ${formatTime(recordingTime)}` : 'Type a message...'}
-              className="flex-1 bg-transparent py-4 text-sm font-medium focus:outline-none placeholder:text-gray-400"
+              placeholder={isRecording ? `REC ${formatTime(recordingTime)}` : 'Type a message...'}
+              className="flex-1 bg-transparent py-4 text-sm font-medium focus:outline-none text-black dark:text-white"
             />
             {isRecording && (
               <motion.div animate={{ opacity: [1, 0.3] }} transition={{ repeat: Infinity, duration: 0.8 }}
@@ -640,24 +640,28 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
             )}
           </div>
 
-          {/* Send / Mic */}
-          <AnimatePresence mode="wait">
-            {!input.trim() ? (
-              <motion.button key="mic" type="button"
-                onMouseDown={startRecording} onMouseUp={stopRecording} onMouseLeave={stopRecording}
-                onTouchStart={startRecording} onTouchEnd={stopRecording}
-                initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }}
-                className={`p-4 rounded-full transition-all duration-300 shrink-0 ${isRecording ? 'bg-red-500 text-white scale-125 shadow-lg shadow-red-500/40' : isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
-                <Mic size={22} />
-              </motion.button>
-            ) : (
-              <motion.button key="send" type="submit"
-                initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }}
-                className="p-4 bg-primary-500 text-white rounded-full shadow-lg shadow-primary-500/30 active:scale-90 transition shrink-0">
-                <Send size={22} />
-              </motion.button>
-            )}
-          </AnimatePresence>
+          <div className="flex items-center gap-1.5 shrink-0">
+             {/* Audio Mode */}
+             <button
+               type="button"
+               onMouseDown={startRecording} onMouseUp={stopRecording} onMouseLeave={stopRecording}
+               onTouchStart={startRecording} onTouchEnd={stopRecording}
+               className={`p-3.5 rounded-2xl transition-all ${isRecording ? 'bg-red-500 text-white shadow-lg' : isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}
+             >
+               <Mic size={20} />
+             </button>
+
+             {/* Send Action */}
+             {(input.trim() || isRecording) && (
+                <button
+                  type={isRecording ? "button" : "submit"}
+                  onClick={isRecording ? stopRecording : undefined}
+                  className="p-3.5 bg-primary-600 text-white rounded-2xl shadow-lg shadow-primary-500/20 active:scale-95 transition-all"
+                >
+                  <Send size={20} />
+                </button>
+             )}
+          </div>
         </form>
       </div>
 

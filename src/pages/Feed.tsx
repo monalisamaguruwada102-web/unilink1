@@ -10,7 +10,7 @@ export default function Feed() {
   const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
   const [votedPollOption, setVotedPollOption] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  
+  const [likingId, setLikingId] = useState<string | null>(null);
   // State for Modals
   const [showCreateStory, setShowCreateStory] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
@@ -465,10 +465,24 @@ export default function Feed() {
                <div className="px-6 py-5 border-t border-gray-500/5 flex items-center justify-between bg-gray-500/5">
                   <div className="flex items-center gap-4">
                      <button 
-                       onClick={() => post.is_liked ? unlikePost(post.id, session?.user.id || '') : likePost(post.id, post.user_id, session?.user.id || '')} 
+                       disabled={likingId === post.id}
+                       onClick={async (e) => {
+                         e.stopPropagation();
+                         if (likingId === post.id) return;
+                         setLikingId(post.id);
+                         try {
+                           if (post.is_liked) {
+                             await unlikePost(post.id, session?.user.id || '');
+                           } else {
+                             await likePost(post.id, post.user_id, session?.user.id || '');
+                           }
+                         } finally {
+                           setLikingId(null);
+                         }
+                       }} 
                        className={`flex items-center gap-2 px-6 py-3 rounded-2xl transition-all active:scale-95 ${post.is_liked ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/20' : 'bg-primary-500/10 text-primary-500 font-bold'}`}
                      >
-                        <Heart size={18} fill={post.is_liked ? "currentColor" : "none"} strokeWidth={3} />
+                        <Heart size={18} fill={post.is_liked ? "currentColor" : "none"} strokeWidth={3} className={likingId === post.id ? 'animate-pulse' : ''} />
                         <span className="text-[11px] font-black">{post.likes || 0}</span>
                      </button>
                      <button 
