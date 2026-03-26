@@ -46,7 +46,7 @@ export default function Auth() {
               campus: 'Kwekwe Polytechnic',
               welcome_note: 'Welcome to the official student network of Poly Link!' 
             },
-            redirectTo: redirectUrl,
+            emailRedirectTo: redirectUrl,
           },
         });
         
@@ -75,7 +75,7 @@ export default function Auth() {
         type: 'signup',
         email,
         options: {
-           redirectTo: `${window.location.origin}/auth/callback`,
+           emailRedirectTo: `${window.location.origin}/auth/callback`,
         }
       });
       if (error) throw error;
