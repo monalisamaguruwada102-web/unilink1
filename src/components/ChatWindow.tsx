@@ -364,6 +364,20 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   };
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  
+  const formatLastSeen = (lastSeen?: string) => {
+    if (!lastSeen) return 'Never';
+    const seconds = Math.floor((new Date().getTime() - new Date(lastSeen).getTime()) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) {
+      const remainingMinutes = minutes % 60;
+      return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m ago` : `${hours}h ago`;
+    }
+    return new Date(lastSeen).toLocaleDateString();
+  };
 
   // ─── Vibe Check ───────────────────────────────────────────────────────────
   const sendVibeCheck = () => {
@@ -455,7 +469,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
                     : 'text-gray-400'
                   }`}
                 >
-                  {isOtherTyping ? 'typing...' : isOnline ? '● Online' : 'Offline'}
+                  {isOtherTyping ? 'typing...' : isOnline ? '● Online' : `Last seen ${formatLastSeen(otherUser.last_seen)}`}
                 </motion.p>
               </AnimatePresence>
             </div>

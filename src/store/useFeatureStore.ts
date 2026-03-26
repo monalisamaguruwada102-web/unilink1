@@ -479,7 +479,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
           }));
         } else if (payload.eventType === 'UPDATE') {
           set((state) => ({
-            posts: state.posts.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p)
+            posts: state.posts.map(p => p.id === payload.new.id ? { ...p, ...payload.new, is_liked: p.is_liked } : p)
           }));
         } else if (payload.eventType === 'DELETE') {
           set((state) => ({ posts: state.posts.filter(p => p.id !== payload.old.id) }));
@@ -534,7 +534,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
           set(state => ({
             postLikes: [...state.postLikes, payload.new as PostLike],
             posts: state.posts.map(p => p.id === payload.new.post_id 
-              ? { ...p, likes: (p.likes || 0) + 1, is_liked: isMe ? true : p.is_liked } 
+              ? { ...p, is_liked: isMe ? true : p.is_liked } 
               : p
             )
           }));
@@ -543,7 +543,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
           set(state => ({
             postLikes: state.postLikes.filter(pl => pl.post_id !== payload.old.post_id || pl.user_id !== payload.old.user_id),
             posts: state.posts.map(p => p.id === payload.old.post_id 
-              ? { ...p, likes: Math.max(0, (p.likes || 1) - 1), is_liked: isMe ? false : p.is_liked } 
+              ? { ...p, is_liked: isMe ? false : p.is_liked } 
               : p
             )
           }));
