@@ -155,7 +155,18 @@ export default function Profile() {
     <div className="min-h-screen bg-gray-50 pb-36 font-sans">
       {/* Header */}
       <div className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
-        <h1 className="text-xl font-bold text-gray-900">My Profile</h1>
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          My Profile
+          {session?.user?.email && ['joshuamujakari15@gmail.com'].includes(session.user.email.toLowerCase()) && (
+            <button 
+              onClick={() => window.location.href = '/admin'} 
+              className="w-6 h-6 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center cursor-pointer hover:bg-red-500 hover:text-white transition-colors"
+              title="Admin Portal"
+            >
+              <div className="w-2 h-2 rounded-full bg-current" />
+            </button>
+          )}
+        </h1>
         <button onClick={() => signOut()} className="flex items-center gap-2 text-red-500 font-semibold text-sm hover:text-red-600 transition-colors">
           <LogOut size={18} /> Sign Out
         </button>
