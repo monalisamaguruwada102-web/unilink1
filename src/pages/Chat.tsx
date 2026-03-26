@@ -20,8 +20,8 @@ export default function Chat() {
       .from('matches')
       .select(`
         id,
-        user1:users!user1_id(id, name, avatar_url, last_seen),
-        user2:users!user2_id(id, name, avatar_url, last_seen)
+        user1:users!user1_id(id, name, avatar_url, last_seen, latitude, longitude, location_updated_at, course, college),
+        user2:users!user2_id(id, name, avatar_url, last_seen, latitude, longitude, location_updated_at, course, college)
       `)
       .eq('id', matchId)
       .single();
@@ -36,7 +36,11 @@ export default function Chat() {
   };
 
   if (!matchDetails) {
-    return <div className="flex h-screen items-center justify-center">Loading...</div>;
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
   return (
