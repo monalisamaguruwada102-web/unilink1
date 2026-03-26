@@ -11,7 +11,9 @@ export default function AuthCallback() {
       const { data: { session }, error } = await supabase.auth.getSession();
       
       if (session) {
-        // If we have a session, redirect to home with a success flag
+        // The user verified successfully and Supabase auto-logged them in.
+        // We force sign out here so they are redirected to the Login page manually.
+        await supabase.auth.signOut();
         window.location.href = '/?confirmed=true';
       } else if (error) {
         console.error('Auth callback error:', error.message);
@@ -20,7 +22,7 @@ export default function AuthCallback() {
         // No session yet, maybe it's still processing
         // Supabase onAuthStateChange in App.tsx might catch it too
         setTimeout(() => {
-            window.location.href = '/';
+            window.location.href = '/?confirmed=true'; // Fallback redirect to login
         }, 2000);
       }
     };
