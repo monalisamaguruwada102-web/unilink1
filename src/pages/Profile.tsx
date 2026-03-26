@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
-import { LogOut, Save, Camera, User, BookOpen, GraduationCap } from 'lucide-react';
+import { LogOut, Save, Camera, User, BookOpen, GraduationCap, MapPin, Navigation, Loader } from 'lucide-react';
 
 export default function Profile() {
   const { profile, session, signOut, fetchProfile } = useAuthStore();
@@ -14,12 +14,19 @@ export default function Profile() {
   const [avatarUrl, setAvatarUrl] = useState('');
   const [gender, setGender] = useState('');
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
+
+  // Live location state
+  const [liveCoords, setLiveCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'watching' | 'error'>('idle');
+  const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
   
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   
   const fileRef = useRef<HTMLInputElement>(null);
+  const watchIdRef = useRef<number | null>(null);
+  const lastPushRef = useRef<number>(0);
 
   useEffect(() => {
     if (profile) {
@@ -31,8 +38,58 @@ export default function Profile() {
       setAvatarUrl(profile.avatar_url || '');
       setGender(profile.gender || '');
       setIsLocationEnabled(profile.is_location_enabled || false);
+      if (profile.latitude && profile.longitude) {
+        setLiveCoords({ lat: profile.latitude, lng: profile.longitude });
+      }
     }
   }, [profile]);
+
+  // ── Real-time GPS Watcher ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (isLocationEnabled && session?.user?.id) {
+      if (!('geolocation' in navigator)) {
+        setLocationStatus('error');
+        return;
+      }
+      setLocationStatus('watching');
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        async (pos) => {
+          const { latitude, longitude, accuracy } = pos.coords;
+          setLiveCoords({ lat: latitude, lng: longitude });
+          setLocationAccuracy(accuracy);
+          // Throttle DB writes to once every 30 seconds
+          const now = Date.now();
+          if (now - lastPushRef.current > 30000) {
+            lastPushRef.current = now;
+            await supabase.from('users').update({
+              latitude,
+              longitude,
+              location_updated_at: new Date().toISOString(),
+            }).eq('id', session.user.id);
+          }
+        },
+        (err) => {
+          console.warn('Geolocation watch error:', err);
+          setLocationStatus('error');
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    } else {
+      // Stop watching
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      setLocationStatus('idle');
+      setLiveCoords(null);
+      setLocationAccuracy(null);
+    }
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, [isLocationEnabled, session?.user?.id]);
 
   const handleUploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -40,28 +97,14 @@ export default function Profile() {
     setUploading(true);
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `avatar-${Date.now()}.${fileExt}`;
-      const path = `${session.user.id}/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(path, file, { cacheControl: '3600', upsert: true });
-
+      const path = `${session.user.id}/avatar-${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { cacheControl: '3600', upsert: true });
       if (uploadError) throw uploadError;
-
       const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-      const publicUrl = data.publicUrl;
-      
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
-        .eq('id', session.user.id);
-
-      if (updateError) throw updateError;
-      setAvatarUrl(publicUrl);
+      await supabase.from('users').update({ avatar_url: data.publicUrl, updated_at: new Date().toISOString() }).eq('id', session.user.id);
+      setAvatarUrl(data.publicUrl);
       await fetchProfile(session.user.id);
     } catch (err: any) {
-      console.error('Avatar upload error:', err);
       alert('Failed to upload avatar. Please try again.');
     } finally {
       setUploading(false);
@@ -76,63 +119,50 @@ export default function Profile() {
     const updates: Record<string, any> = {
       id: session.user.id,
       email: session.user.email,
-      name,
-      age: age ? parseInt(age) : null,
-      college: college || '',
-      course: course || '',
-      bio: bio || '',
-      avatar_url: avatarUrl || '',
-      gender: gender || '',
+      name, age: age ? parseInt(age) : null, college, course, bio, avatar_url: avatarUrl, gender,
       is_location_enabled: isLocationEnabled,
       updated_at: new Date().toISOString(),
     };
 
-    try {
-      if (isLocationEnabled && "geolocation" in navigator) {
-        try {
-          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
-          });
-          updates.latitude = position.coords.latitude;
-          updates.longitude = position.coords.longitude;
-          updates.location_updated_at = new Date().toISOString();
-        } catch (geoErr) {
-          console.warn('Geolocation failed:', geoErr);
-          // Proceed saving profile without strict location if denied or failed
-        }
-      } else if (!isLocationEnabled) {
-        updates.latitude = null;
-        updates.longitude = null;
-      }
+    if (liveCoords) {
+      updates.latitude = liveCoords.lat;
+      updates.longitude = liveCoords.lng;
+      updates.location_updated_at = new Date().toISOString();
+    } else if (!isLocationEnabled) {
+      updates.latitude = null;
+      updates.longitude = null;
+    }
 
+    try {
       const { error } = await supabase.from('users').upsert(updates);
       if (error) throw error;
       await fetchProfile(session.user.id);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: any) {
-       console.error('Profile save error:', err);
-       alert('Failed to save profile.');
+      alert('Failed to save profile.');
     } finally {
       setSaving(false);
     }
   };
+
+  // Map thumbnail using OpenStreetMap static rendering
+  const mapThumb = liveCoords
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${liveCoords.lng - 0.005}%2C${liveCoords.lat - 0.005}%2C${liveCoords.lng + 0.005}%2C${liveCoords.lat + 0.005}&layer=mapnik&marker=${liveCoords.lat}%2C${liveCoords.lng}`
+    : null;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-36 font-sans">
       {/* Header */}
       <div className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <h1 className="text-xl font-bold text-gray-900">My Profile</h1>
-        <button
-          onClick={() => signOut()}
-          className="flex items-center gap-2 text-red-500 font-semibold text-sm hover:text-red-600 transition-colors"
-        >
+        <button onClick={() => signOut()} className="flex items-center gap-2 text-red-500 font-semibold text-sm hover:text-red-600 transition-colors">
           <LogOut size={18} /> Sign Out
         </button>
       </div>
 
       <form onSubmit={saveProfile} className="max-w-md mx-auto px-6 py-8 space-y-8">
-        {/* Avatar Section */}
+        {/* Avatar */}
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-28 h-28 rounded-full overflow-hidden ring-4 ring-white shadow-xl bg-gray-200">
@@ -144,12 +174,8 @@ export default function Profile() {
                 </div>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={uploading}
-              className="absolute bottom-0 right-0 w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-black/10 border-2 border-white hover:bg-primary-600 transition"
-            >
+            <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
+              className="absolute bottom-0 right-0 w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center text-white shadow-lg border-2 border-white hover:bg-primary-600 transition">
               {uploading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Camera size={18} />}
             </button>
           </div>
@@ -162,99 +188,118 @@ export default function Profile() {
 
         {/* Basic Info */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
-           <div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase tracking-wider">
-             <User size={14} /> Basic Information
-           </div>
-           
-           <div className="space-y-4">
-             <div>
-               <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">Full Name</label>
-               <input
-                 value={name}
-                 onChange={e => setName(e.target.value)}
-                 placeholder="Full Name"
-                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition"
-               />
-             </div>
-             <div>
-               <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">Gender</label>
-               <select
-                 value={gender}
-                 onChange={e => setGender(e.target.value)}
-                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition"
-               >
-                 <option value="" className="text-gray-500">Select Gender...</option>
-                 <option value="male">Male</option>
-                 <option value="female">Female</option>
-               </select>
-             </div>
-             <div>
-               <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">Age</label>
-               <input
-                 value={age}
-                 onChange={e => setAge(e.target.value)}
-                 type="number"
-                 placeholder="Age"
-                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition"
-               />
-             </div>
-           </div>
+          <div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase tracking-wider"><User size={14} /> Basic Information</div>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">Full Name</label>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="Full Name" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">Gender</label>
+              <select value={gender} onChange={e => setGender(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition">
+                <option value="">Select Gender...</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">Age</label>
+              <input value={age} onChange={e => setAge(e.target.value)} type="number" placeholder="Age" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition" />
+            </div>
+          </div>
         </div>
 
         {/* School Info */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
-           <div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase tracking-wider">
-             <GraduationCap size={14} /> Campus Information
-           </div>
-           
-           <div className="space-y-4">
-             <div>
-               <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">College / University</label>
-               <input
-                 value={college}
-                 onChange={e => setCollege(e.target.value)}
-                 placeholder="e.g. Kwekwe Polytechnic"
-                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition"
-               />
-             </div>
-             <div>
-               <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">Course / Department</label>
-               <input
-                 value={course}
-                 onChange={e => setCourse(e.target.value)}
-                 placeholder="e.g. Computer Science"
-                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition"
-               />
-             </div>
-           </div>
+          <div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase tracking-wider"><GraduationCap size={14} /> Campus Information</div>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">College / University</label>
+              <input value={college} onChange={e => setCollege(e.target.value)} placeholder="e.g. Kwekwe Polytechnic" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">Course / Department</label>
+              <input value={course} onChange={e => setCourse(e.target.value)} placeholder="e.g. Computer Science" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition" />
+            </div>
+          </div>
         </div>
 
-        {/* Location Privacy */}
+        {/* ── LIVE LOCATION SECTION ─────────────────────────────────────── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-           <div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase tracking-wider">
-             <BookOpen size={14} /> Privacy & Discovery
-           </div>
-           
-           <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50">
-             <div>
-               <h4 className="text-sm font-bold text-gray-900">Campus Hotspot Locator</h4>
-               <p className="text-xs text-gray-500 mt-1 max-w-[200px]">Let others see when you are on campus to trigger vibes and meetups.</p>
-             </div>
-             <button
-                type="button"
-                onClick={() => setIsLocationEnabled(!isLocationEnabled)}
-                className={`w-14 h-8 rounded-full transition-all relative ${isLocationEnabled ? 'bg-primary-500 shadow-inner' : 'bg-gray-200'}`}
-             >
-                <div className={`w-6 h-6 bg-white rounded-full absolute top-1 shadow-sm transition-all ${isLocationEnabled ? 'left-7' : 'left-1'}`} />
-             </button>
-           </div>
+          <div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase tracking-wider">
+            <MapPin size={14} /> Live Location Sharing
+          </div>
+
+          <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+            <div>
+              <h4 className="text-sm font-bold text-gray-900">Campus Hotspot Locator</h4>
+              <p className="text-xs text-gray-500 mt-1 max-w-[200px]">Share your live location so matches can find you on campus.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsLocationEnabled(!isLocationEnabled)}
+              className={`w-14 h-8 rounded-full transition-all relative ${isLocationEnabled ? 'bg-primary-500 shadow-inner' : 'bg-gray-200'}`}
+            >
+              <div className={`w-6 h-6 bg-white rounded-full absolute top-1 shadow-sm transition-all ${isLocationEnabled ? 'left-7' : 'left-1'}`} />
+            </button>
+          </div>
+
+          {/* Status indicator */}
+          {isLocationEnabled && (
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold ${
+              locationStatus === 'watching' && liveCoords ? 'bg-green-50 text-green-700 border border-green-200'
+              : locationStatus === 'error' ? 'bg-red-50 text-red-600 border border-red-200'
+              : 'bg-blue-50 text-blue-600 border border-blue-200'
+            }`}>
+              {locationStatus === 'watching' && !liveCoords && <Loader size={14} className="animate-spin" />}
+              {locationStatus === 'watching' && liveCoords && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />}
+              {locationStatus === 'error' && <span className="w-2 h-2 bg-red-500 rounded-full" />}
+              <span>
+                {locationStatus === 'error' ? '⚠️ Location permission denied. Please allow in browser settings.'
+                  : liveCoords ? `📍 Live · ${liveCoords.lat.toFixed(5)}, ${liveCoords.lng.toFixed(5)} · ±${locationAccuracy ? Math.round(locationAccuracy) : '?'}m`
+                  : '🔍 Acquiring GPS signal...'}
+              </span>
+            </div>
+          )}
+
+          {/* Live Map Preview */}
+          {liveCoords && mapThumb && (
+            <div className="relative rounded-2xl overflow-hidden border border-gray-200 shadow-lg" style={{ height: 200 }}>
+              <iframe
+                title="my-location-preview"
+                src={mapThumb}
+                width="100%"
+                height="100%"
+                className="pointer-events-none"
+                style={{ border: 0 }}
+              />
+              {/* Pulsing accuracy ring overlay */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="relative">
+                  <span className="absolute w-10 h-10 bg-primary-500/20 rounded-full animate-ping -translate-x-1/2 -translate-y-1/2" />
+                  <div className="w-5 h-5 bg-primary-500 rounded-full border-2 border-white shadow-xl -translate-x-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+              <div className="absolute bottom-2 right-2 flex gap-2">
+                <a
+                  href={`https://www.google.com/maps?q=${liveCoords.lat},${liveCoords.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 bg-white text-gray-800 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg border border-gray-100 hover:bg-primary-500 hover:text-white transition"
+                >
+                  Open Maps
+                </a>
+              </div>
+              <div className="absolute top-2 left-2 px-2 py-1 bg-green-500 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
+                <Navigation size={9} /> Live
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Bio */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-          <div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase tracking-wider">
-             <BookOpen size={14} /> About Me
-          </div>
+          <div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase tracking-wider"><BookOpen size={14} /> About Me</div>
           <textarea
             value={bio}
             onChange={e => setBio(e.target.value)}
@@ -266,14 +311,14 @@ export default function Profile() {
           <p className="text-[10px] text-gray-400 text-right">{bio.length}/200</p>
         </div>
 
-        {/* Save Button */}
+        {/* Save */}
         <button
           type="submit"
           disabled={saving}
           className={`w-full py-4 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-3 ${saved ? 'bg-green-500' : 'bg-primary-500 hover:bg-primary-600 active:scale-95'}`}
         >
           <Save size={20} />
-          {saving ? 'Saving...' : saved ? 'Changes Saved!' : 'Save Profile'}
+          {saving ? 'Saving...' : saved ? '✓ Changes Saved!' : 'Save Profile'}
         </button>
       </form>
     </div>

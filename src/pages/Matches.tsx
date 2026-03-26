@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Search, ChevronRight, MessageSquare, MapPin, X } from 'lucide-react';
+import { Heart, Search, ChevronRight, MessageSquare, MapPin, X, Navigation, Clock, Satellite } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Matches() {
@@ -13,6 +13,7 @@ export default function Matches() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [locationMatch, setLocationMatch] = useState<any>(null);
+  const [mapLayer, setMapLayer] = useState<'mapnik' | 'hot'>('mapnik');
   const { session, profile } = useAuthStore();
   const { isDarkMode } = useFeatureStore();
   const navigate = useNavigate();
@@ -408,101 +409,147 @@ export default function Matches() {
 
       {/* 📍 LOCATION MODAL */}
       <AnimatePresence>
-        {locationMatch && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-end"
-            onClick={() => setLocationMatch(null)}
-          >
+        {locationMatch && (() => {
+          const u = locationMatch.user;
+          const isLive = u.location_updated_at && (new Date().getTime() - new Date(u.location_updated_at).getTime()) < 300000;
+          const updatedMins = u.location_updated_at ? Math.floor((new Date().getTime() - new Date(u.location_updated_at).getTime()) / 60000) : null;
+          const bbox = u.latitude && u.longitude
+            ? `${u.longitude - 0.008}%2C${u.latitude - 0.008}%2C${u.longitude + 0.008}%2C${u.latitude + 0.008}`
+            : null;
+          const mapSrc = bbox
+            ? `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=${mapLayer}&marker=${u.latitude}%2C${u.longitude}`
+            : null;
+
+          return (
             <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25 }}
-              className={`w-full rounded-t-[3rem] overflow-hidden ${isDarkMode ? 'bg-gray-950' : 'bg-white'}`}
-              onClick={e => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col"
+              onClick={() => setLocationMatch(null)}
             >
-              {/* Header */}
-              <div className={`flex items-center justify-between px-7 py-5 ${isDarkMode ? 'border-b border-gray-800' : 'border-b border-gray-100'}`}>
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl overflow-hidden">
-                    {locationMatch.user.avatar_url
-                      ? <img src={locationMatch.user.avatar_url} className="w-full h-full object-cover" alt="" />
-                      : <div className="w-full h-full bg-primary-100 flex items-center justify-center font-black text-primary-600">{locationMatch.user.name?.[0]}</div>
-                    }
-                  </div>
-                  <div>
-                    <h3 className="font-black text-base">{locationMatch.user.name}'s Location</h3>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <div className={`w-2 h-2 rounded-full ${
-                        locationMatch.user.location_updated_at && (new Date().getTime() - new Date(locationMatch.user.location_updated_at).getTime()) < 300000
-                          ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
-                      }`} />
-                      <p className="text-[10px] font-black uppercase tracking-widest opacity-50">
-                        {locationMatch.user.location_updated_at
-                          ? `Updated ${new Date(locationMatch.user.location_updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                          : locationMatch.user.latitude ? 'Nearby Polytech' : 'Location unknown'}
-                      </p>
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 28, stiffness: 220 }}
+                className={`flex flex-col h-full ${isDarkMode ? 'bg-gray-950' : 'bg-white'}`}
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className={`flex items-center justify-between px-5 py-4 border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-100'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="relative w-12 h-12 rounded-2xl overflow-hidden border-2 border-primary-500/30">
+                      {u.avatar_url
+                        ? <img src={u.avatar_url} className="w-full h-full object-cover" alt="" />
+                        : <div className="w-full h-full bg-primary-100 flex items-center justify-center font-black text-primary-600 text-lg">{u.name?.[0]}</div>
+                      }
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white dark:border-gray-950 ${isLive ? 'bg-green-500' : 'bg-gray-400'}`} />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-base tracking-tight">{u.name}'s Location</h3>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {isLive ? (
+                          <span className="flex items-center gap-1 text-[10px] font-black text-green-500 uppercase tracking-widest">
+                            <Navigation size={10} className="animate-pulse" /> Live Now
+                          </span>
+                        ) : updatedMins !== null ? (
+                          <span className="flex items-center gap-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                            <Clock size={10} /> {updatedMins < 60 ? `${updatedMins}m ago` : `${Math.floor(updatedMins/60)}h ago`}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Location unknown</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <button onClick={() => setLocationMatch(null)} className={`p-3 rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                  <X size={20} />
-                </button>
-              </div>
-
-              {/* Map iframe via OpenStreetMap */}
-              <div className="relative w-full" style={{ height: '55vh' }}>
-                {locationMatch.user.latitude && locationMatch.user.longitude ? (
-                  <iframe
-                    title="match-location"
-                    width="100%"
-                    height="100%"
-                    frameBorder="0"
-                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${locationMatch.user.longitude - 0.01}%2C${locationMatch.user.latitude - 0.01}%2C${locationMatch.user.longitude + 0.01}%2C${locationMatch.user.latitude + 0.01}&layer=mapnik&marker=${locationMatch.user.latitude}%2C${locationMatch.user.longitude}`}
-                    style={{ border: 0 }}
-                    allowFullScreen
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center opacity-30 gap-4">
-                    <MapPin size={48} />
-                    <p className="font-black text-sm uppercase tracking-widest">Location not shared yet</p>
-                  </div>
-                )}
-
-                {/* Overlay pin label */}
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
-                  <div className="px-5 py-3 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl flex items-center gap-3 border border-gray-100 dark:border-gray-800">
-                    <MapPin size={16} className="text-primary-500" />
-                    <span className="font-black text-xs uppercase tracking-widest">{locationMatch.user.name} is here</span>
+                  <div className="flex items-center gap-2">
+                    {/* Map layer toggle */}
+                    <button
+                      onClick={() => setMapLayer(l => l === 'mapnik' ? 'hot' : 'mapnik')}
+                      className={`p-2 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-1 transition ${
+                        mapLayer === 'hot' ? 'bg-primary-500 text-white' : isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'
+                      }`}
+                    >
+                      <Satellite size={14} />
+                    </button>
+                    <button onClick={() => setLocationMatch(null)} className={`p-2.5 rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <X size={18} />
+                    </button>
                   </div>
                 </div>
-              </div>
 
-              {/* Action row */}
-              <div className="px-7 py-5 flex gap-4">
-                <button
-                  onClick={() => { setLocationMatch(null); navigate(`/chat/${locationMatch.id}`); }}
-                  className="flex-1 py-4 bg-primary-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary-500/30"
-                >
-                  Open Chat
-                </button>
-                <a
-                  href={`https://www.google.com/maps?q=${locationMatch.user.latitude},${locationMatch.user.longitude}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`flex-1 py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-center border ${
-                    isDarkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-600'
-                  }`}
-                >
-                  Open in Maps
-                </a>
-              </div>
+                {/* Map */}
+                <div className="flex-1 relative overflow-hidden">
+                  {mapSrc ? (
+                    <>
+                      <iframe
+                        key={mapLayer}
+                        title="match-location"
+                        src={mapSrc}
+                        width="100%"
+                        height="100%"
+                        style={{ border: 0, filter: isDarkMode ? 'invert(90%) hue-rotate(180deg)' : 'none' }}
+                        allowFullScreen
+                      />
+                      {/* Pulsing live pin overlay */}
+                      {isLive && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="relative">
+                            <span className="absolute w-16 h-16 rounded-full bg-green-500/20 animate-ping" style={{ top: '-32px', left: '-32px' }} />
+                            <span className="absolute w-10 h-10 rounded-full bg-green-500/30 animate-pulse" style={{ top: '-20px', left: '-20px' }} />
+                          </div>
+                        </div>
+                      )}
+                      {/* Location badge */}
+                      <div className="absolute top-3 left-3 right-3 flex justify-between items-start pointer-events-none">
+                        <div className={`px-3 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-xl ${
+                          isLive ? 'bg-green-500 text-white' : isDarkMode ? 'bg-gray-900/90 text-gray-300' : 'bg-white/90 text-gray-700'
+                        }`}>
+                          <MapPin size={12} /> {u.name} is here
+                        </div>
+                        {u.latitude && u.longitude && (
+                          <div className={`px-3 py-2 rounded-2xl text-[9px] font-black shadow-xl ${
+                            isDarkMode ? 'bg-gray-900/90 text-gray-400' : 'bg-white/90 text-gray-500'
+                          }`}>
+                            {u.latitude.toFixed(4)}°, {u.longitude.toFixed(4)}°
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-4 opacity-30">
+                      <MapPin size={56} />
+                      <p className="font-black text-sm uppercase tracking-widest">Location not shared yet</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* CTA row */}
+                <div className={`px-5 py-5 flex gap-3 border-t ${isDarkMode ? 'border-gray-800 bg-gray-950' : 'border-gray-100 bg-white'}`}>
+                  <button
+                    onClick={() => { setLocationMatch(null); navigate(`/chat/${locationMatch.id}`); }}
+                    className="flex-1 py-4 bg-primary-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary-500/30 active:scale-95 transition flex items-center justify-center gap-2"
+                  >
+                    <MessageSquare size={16} /> Open Chat
+                  </button>
+                  {u.latitude && u.longitude && (
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${u.latitude},${u.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`flex-1 py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-center border flex items-center justify-center gap-2 active:scale-95 transition ${
+                        isDarkMode ? 'border-gray-700 text-gray-300 hover:bg-gray-800' : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Navigation size={16} /> Directions
+                    </a>
+                  )}
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
+          );
+        })()}
       </AnimatePresence>
     </div>
   );
