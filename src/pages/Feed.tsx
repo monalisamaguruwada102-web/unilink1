@@ -2,9 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
-import { Heart, MessageCircle, X, Plus, Hash, Trash2, Sparkles, Bell, CheckCircle2, MoreVertical, Image as ImageIcon, Send, Smile, TrendingUp, Users } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { Heart, MessageCircle, X, Plus, Hash, Trash2, Sparkles, Bell, CheckCircle2, MoreVertical, Image as ImageIcon, Send, Smile, TrendingUp, Users, Flag, Copy, Share2 } from 'lucide-react';
 
 export default function Feed() {
+  const [liveOnlineCount, setLiveOnlineCount] = useState(0);
+  const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
+  const [votedPollOption, setVotedPollOption] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   
   // State for Modals
@@ -56,6 +60,25 @@ export default function Feed() {
     setLoading(true);
     fetchFeatures().finally(() => setLoading(false));
   }, []);
+
+  // ── Real-time Presence: count users actually on app now ──────────────────
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const presenceCh = supabase.channel('global_presence', {
+      config: { presence: { key: session.user.id } },
+    });
+    presenceCh
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceCh.presenceState();
+        setLiveOnlineCount(Object.keys(state).length);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await presenceCh.track({ user_id: session.user.id, online_at: new Date().toISOString() });
+        }
+      });
+    return () => { supabase.removeChannel(presenceCh); };
+  }, [session?.user?.id]);
 
   const handleStoryFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -208,9 +231,15 @@ export default function Feed() {
                   <div className="px-3 py-1.5 rounded-xl bg-primary-500/10 text-primary-500 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 border border-primary-500/10">
                     <Sparkles size={10} /> {profile?.course || 'No Course Set'}
                   </div>
-                  <div className="px-3 py-1.5 rounded-xl bg-green-500/10 text-green-500 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 border border-green-500/10">
-                    <Users size={10} /> {onlineCount} Online
-                  </div>
+                   <motion.div
+                     key={liveOnlineCount}
+                     initial={{ scale: 0.85 }}
+                     animate={{ scale: 1 }}
+                     className="px-3 py-1.5 rounded-xl bg-green-500/10 text-green-500 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 border border-green-500/10"
+                   >
+                     <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                     <Users size={10} /> {liveOnlineCount > 0 ? liveOnlineCount : onlineCount} Online Now
+                   </motion.div>
                </div>
             </div>
             {/* Abstract Decorative Background */}
@@ -256,39 +285,62 @@ export default function Feed() {
         </div>
         
         <div className="grid grid-cols-1 gap-4">
-           {/* Current Poll */}
+           {/* Current Poll — Now Clickable */}
            {currentPoll && (
              <div className={`p-6 rounded-[2.5rem] border ${isDarkMode ? 'bg-gray-900/50 border-gray-800/50' : 'bg-indigo-500/5 border-indigo-500/10'}`}>
-               <div className="flex items-center gap-2 mb-3">
-                  <span className="p-1 px-2 bg-indigo-500 text-white text-[8px] font-black uppercase rounded-lg">LIVE POLL</span>
-                  <p className="text-[11px] font-black opacity-80">{currentPoll.question}</p>
+               <div className="flex items-center gap-2 mb-4">
+                  <motion.span animate={{ opacity: [1, 0.4, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="p-1 px-2 bg-indigo-500 text-white text-[8px] font-black uppercase rounded-lg">● LIVE</motion.span>
+                  <p className="text-[12px] font-black opacity-90">{currentPoll.question}</p>
                </div>
                <div className="space-y-2">
-                  {currentPoll.options.slice(0, 2).map((opt, i) => (
-                    <div key={i} className={`p-4 rounded-2xl border text-[10px] font-black uppercase tracking-widest flex justify-between items-center ${isDarkMode ? 'bg-gray-800/50 border-gray-700/50' : 'bg-white border-indigo-500/5'}`}>
-                       <span>{opt.label}</span>
-                       <span className="text-indigo-500 italic">{opt.votes} votes</span>
-                    </div>
-                  ))}
+               {currentPoll.options.map((opt, i) => {
+                    const totalVotes = currentPoll.options.reduce((s, o) => s + (o.votes || 0), 0);
+                    const pct = totalVotes > 0 ? Math.round(((opt.votes || 0) / totalVotes) * 100) : 0;
+                    const isVoted = votedPollOption === i;
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => { if (votedPollOption === null) { setVotedPollOption(i); useFeatureStore.getState().voteInPoll(i); } }}
+                        className={`w-full p-4 rounded-2xl border text-left text-[10px] font-black uppercase tracking-widest relative overflow-hidden transition-all active:scale-95 ${
+                          isVoted ? 'border-indigo-500 text-indigo-500' : isDarkMode ? 'bg-gray-800/50 border-gray-700/50' : 'bg-white border-indigo-500/5'
+                        }`}
+                      >
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: votedPollOption !== null ? `${pct}%` : '0%' }}
+                          transition={{ duration: 0.6, ease: 'easeOut' }}
+                          className={`absolute inset-0 ${isVoted ? 'bg-indigo-500/20' : 'bg-gray-500/10'}`}
+                        />
+                        <span className="relative z-10 flex justify-between items-center">
+                          <span>{opt.label}</span>
+                          {votedPollOption !== null && <span className="text-indigo-500 italic">{pct}%</span>}
+                        </span>
+                      </button>
+                    );
+                  })}
                </div>
+               {votedPollOption === null && (
+                 <p className="text-center text-[8px] font-black uppercase opacity-20 tracking-widest mt-3">Tap an option to vote</p>
+               )}
              </div>
            )}
 
-           {/* Secrets Marquee */}
-           {confessions.length > 0 && (
-              <div className={`p-5 rounded-[2.5rem] border flex items-center gap-4 relative ${isDarkMode ? 'bg-pink-500/5 border-pink-500/10' : 'bg-pink-50 border-pink-100'}`}>
-                 <div className="w-12 h-12 rounded-2xl bg-pink-500 text-white flex items-center justify-center shadow-lg shadow-pink-500/20 shrink-0">
-                    <Hash size={20} />
-                 </div>
-                 <div className="flex-1 overflow-hidden">
-                    <p className="text-[9px] font-black uppercase text-pink-600 mb-1 opacity-60">Trending Secret</p>
-                    <p className="text-xs font-bold italic truncate opacity-80">"{confessions[0].content}"</p>
-                 </div>
-                 <button onClick={() => setShowConfessionModal(true)} className="absolute top-4 right-4 bg-pink-500/10 text-pink-500 p-2 rounded-xl active:scale-95 transition">
-                   <Plus size={16} />
-                 </button>
+           {/* Secrets — always visible */}
+           <div className={`p-5 rounded-[2.5rem] border flex items-center gap-4 relative ${isDarkMode ? 'bg-pink-500/5 border-pink-500/10' : 'bg-pink-50 border-pink-100'}`}>
+              <div className="w-12 h-12 rounded-2xl bg-pink-500 text-white flex items-center justify-center shadow-lg shadow-pink-500/20 shrink-0">
+                 <Hash size={20} />
               </div>
-           )}
+              <div className="flex-1 overflow-hidden">
+                 <p className="text-[9px] font-black uppercase text-pink-600 mb-1 opacity-60">Campus Confessions</p>
+                 <p className="text-xs font-bold italic truncate opacity-80">{confessions.length > 0 ? `"${confessions[0].content}"` : 'Be the first to whisper...'}</p>
+              </div>
+              <button
+                onClick={() => setShowConfessionModal(true)}
+                className="shrink-0 flex items-center gap-1 bg-pink-500 text-white px-3 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest active:scale-95 transition shadow-lg shadow-pink-500/30"
+              >
+                <Plus size={12} /> Add
+              </button>
+           </div>
         </div>
       </div>
 
@@ -342,7 +394,56 @@ export default function Feed() {
                         <Trash2 size={16} />
                       </button>
                     )}
-                    <button onClick={() => alert(post.user_id === session?.user?.id ? 'Options: You can delete this post via the trash icon.' : 'Post reported. Thanks for keeping the community safe!')} className="p-2 opacity-30 hover:opacity-100 transition-opacity"><MoreVertical size={16} /></button>
+                                         <div className="relative">
+                     <button
+                       onClick={() => setOpenMenuPostId(openMenuPostId === post.id ? null : post.id)}
+                       className={`p-2.5 rounded-2xl transition-all ${openMenuPostId === post.id ? (isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700') : 'opacity-30 hover:opacity-100'}`}
+                     >
+                       <MoreVertical size={16} />
+                     </button>
+                     <AnimatePresence>
+                       {openMenuPostId === post.id && (
+                         <motion.div
+                           initial={{ opacity: 0, scale: 0.85, y: -8 }}
+                           animate={{ opacity: 1, scale: 1, y: 0 }}
+                           exit={{ opacity: 0, scale: 0.85, y: -8 }}
+                           transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+                           className={`absolute right-0 top-12 z-50 w-52 rounded-[1.5rem] border shadow-2xl overflow-hidden ${
+                             isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-100'
+                           }`}
+                           onClick={e => e.stopPropagation()}
+                         >
+                           {post.user_id === session?.user.id ? (
+                             <>
+                               <button onClick={() => { if (navigator.share) navigator.share({ title: 'Poly Link', text: post.content, url: window.location.href }); setOpenMenuPostId(null); }} className={`w-full flex items-center gap-3 px-5 py-4 text-[11px] font-black uppercase tracking-widest transition hover:bg-gray-500/10`}>
+                                 <Share2 size={15} className="text-indigo-500" /> Share Post
+                               </button>
+                               <button onClick={() => { navigator.clipboard.writeText(post.content); setOpenMenuPostId(null); }} className={`w-full flex items-center gap-3 px-5 py-4 text-[11px] font-black uppercase tracking-widest transition hover:bg-gray-500/10`}>
+                                 <Copy size={15} className="text-green-500" /> Copy Text
+                               </button>
+                               <div className={`border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`} />
+                               <button onClick={() => { setOpenMenuPostId(null); handleDeletePost(post.id); }} className="w-full flex items-center gap-3 px-5 py-4 text-[11px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 transition">
+                                 <Trash2 size={15} /> Delete Post
+                               </button>
+                             </>
+                           ) : (
+                             <>
+                               <button onClick={() => { if (navigator.share) navigator.share({ title: 'Poly Link', text: post.content, url: window.location.href }); setOpenMenuPostId(null); }} className="w-full flex items-center gap-3 px-5 py-4 text-[11px] font-black uppercase tracking-widest hover:bg-gray-500/10 transition">
+                                 <Share2 size={15} className="text-indigo-500" /> Share Post
+                               </button>
+                               <button onClick={() => { navigator.clipboard.writeText(post.content); setOpenMenuPostId(null); }} className="w-full flex items-center gap-3 px-5 py-4 text-[11px] font-black uppercase tracking-widest hover:bg-gray-500/10 transition">
+                                 <Copy size={15} className="text-green-500" /> Copy Text
+                               </button>
+                               <div className={`border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`} />
+                               <button onClick={() => { alert('✅ Post reported. Our team will review it shortly.'); setOpenMenuPostId(null); }} className="w-full flex items-center gap-3 px-5 py-4 text-[11px] font-black uppercase tracking-widest text-amber-500 hover:bg-amber-500/10 transition">
+                                 <Flag size={15} /> Report Post
+                               </button>
+                             </>
+                           )}
+                         </motion.div>
+                       )}
+                     </AnimatePresence>
+                   </div>
                   </div>
                </div>
 
