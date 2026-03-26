@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useFeatureStore } from '../store/useFeatureStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { Users, ChevronRight, Plus, X, Package, BookOpen } from 'lucide-react';
+import { Users, ChevronRight, Plus, X, Package, BookOpen, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
@@ -46,13 +46,22 @@ export default function CommunityHub() {
           <div className="h-1 w-12 bg-primary-500 rounded-full mb-3" />
           <p className="text-[10px] font-black opacity-40 uppercase tracking-widest leading-none">Kwekwe Poly · Campus Network</p>
         </div>
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setModal('group')}
-          className="w-12 h-12 rounded-2xl bg-primary-500 text-white flex items-center justify-center shadow-lg shadow-primary-500/30"
-        >
-          <Plus size={24} />
-        </motion.button>
+        <div className="flex gap-2">
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => useFeatureStore.getState().fetchFeatures()}
+            className="w-12 h-12 rounded-2xl bg-gray-500/10 text-gray-500 flex items-center justify-center transition-all hover:bg-gray-500/20"
+          >
+            <RefreshCw size={20} />
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setModal('group')}
+            className="w-12 h-12 rounded-2xl bg-primary-500 text-white flex items-center justify-center shadow-lg shadow-primary-500/30"
+          >
+            <Plus size={24} />
+          </motion.button>
+        </div>
       </header>
 
       {/* Section Label */}

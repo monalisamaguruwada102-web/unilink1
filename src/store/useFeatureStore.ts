@@ -440,7 +440,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       activeUsersRes,
       latestPollRes
     ] = await Promise.all([
-      supabase.from('course_groups').select('*, users(name, avatar_url), group_members(count)').order('created_at', { ascending: false }).limit(20),
+      supabase.from('course_groups').select('*, users(name, avatar_url), group_members(count)').order('created_at', { ascending: false }).limit(100),
       supabase.from('confessions').select('*').order('created_at', { ascending: false }).limit(20),
       supabase.from('stories')
         .select('*, users(id, name, avatar_url)')
@@ -552,8 +552,19 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
         set((state) => ({ 
           courseGroups: state.courseGroups.some(i => i.id === payload.new.id)
             ? state.courseGroups
-            : [{ ...payload.new, users: { name: 'Unknown', avatar_url: '' } } as CourseGroup, ...state.courseGroups] 
+            : [{ ...payload.new, member_count: 1, users: { name: 'New Student', avatar_url: '' } } as CourseGroup, ...state.courseGroups] 
         }));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, (payload: any) => {
+        if (payload.eventType === 'INSERT') {
+          set((state) => ({
+            courseGroups: state.courseGroups.map(g => g.id === payload.new.group_id ? { ...g, member_count: (g.member_count || 0) + 1 } : g)
+          }));
+        } else if (payload.eventType === 'DELETE') {
+          set((state) => ({
+            courseGroups: state.courseGroups.map(g => g.id === payload.old.group_id ? { ...g, member_count: Math.max(0, (g.member_count || 1) - 1) } : g)
+          }));
+        }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
         set((state) => ({ 
