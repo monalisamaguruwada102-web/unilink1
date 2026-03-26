@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useFeatureStore } from '../store/useFeatureStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { 
   Users, MessageSquare, ShieldAlert, Trash2, 
-  RefreshCw, UserX, ShieldCheck
+  RefreshCw, UserX, ShieldCheck, Lock, ChevronLeft
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+// 🚨 Define the authorized admin emails here
+const ADMIN_EMAILS = ['joshuamujakari15@gmail.com'];
 
 export default function Admin() {
   const [stats, setStats] = useState({ users: 0, posts: 0, reports: 0 });
@@ -14,10 +19,17 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState<'stats' | 'users' | 'posts' | 'reports'>('stats');
   
   const { isDarkMode } = useFeatureStore();
+  const { session } = useAuthStore();
+  const navigate = useNavigate();
+
+  // Check Authorization
+  const isAuthorized = session?.user?.email && ADMIN_EMAILS.includes(session.user.email.toLowerCase());
 
   useEffect(() => {
-    fetchData();
-  }, [activeTab]);
+    if (isAuthorized) {
+      fetchData();
+    }
+  }, [activeTab, isAuthorized]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -55,18 +67,38 @@ export default function Admin() {
 
   const card = isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100 shadow-xl shadow-gray-200/50';
 
-  return (
-    <div className={`min-h-screen pt-20 pb-20 px-4 transition-colors duration-500 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}>
-      <header className="mb-10 px-2 flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-black tracking-tighter mb-2">Campus Control</h1>
-          <p className="text-[10px] font-black opacity-40 uppercase tracking-widest flex items-center gap-2">
-            <ShieldAlert size={12} className="text-primary-500" /> Admin Interface
-          </p>
+  if (!isAuthorized) {
+    return (
+      <div className={`min-h-screen flex flex-col items-center justify-center p-6 transition-colors duration-500 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}>
+        <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center mb-6">
+          <Lock size={40} className="text-red-500" />
         </div>
-        <button onClick={fetchData} className="p-4 rounded-2xl bg-primary-500/10 text-primary-500">
-          <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+        <h1 className="text-3xl font-black uppercase tracking-tighter mb-2">Access Denied</h1>
+        <p className="text-sm font-bold opacity-50 text-center max-w-xs mb-8">This portal requires clearance level 5. Your account is not authorized.</p>
+        <button onClick={() => navigate('/')} className="px-8 py-4 bg-primary-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl flex items-center gap-2">
+          <ChevronLeft size={16} /> Return to Campus
         </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`min-h-screen pt-12 pb-20 px-4 transition-colors duration-500 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'}`}>
+      <header className="mb-10 px-2">
+        <button onClick={() => navigate('/')} className="mb-6 w-10 h-10 bg-primary-500/10 text-primary-500 rounded-xl flex items-center justify-center active:scale-95 transition-all">
+          <ChevronLeft size={20} />
+        </button>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-black tracking-tighter mb-2">Admin Portal</h1>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-2 text-red-500">
+              <ShieldAlert size={12} /> RESTRICTED ACCESS
+            </p>
+          </div>
+          <button onClick={fetchData} className="p-4 rounded-2xl bg-gray-500/10 text-gray-500 active:scale-90 transition">
+            <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </header>
 
       {/* Stats Grid */}
@@ -90,9 +122,9 @@ export default function Admin() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
-            className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${
+            className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap ${
               activeTab === tab 
-                ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/30' 
+                ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' 
                 : isDarkMode ? 'bg-gray-900 text-gray-500' : 'bg-white text-gray-400'
             }`}
           >
@@ -103,12 +135,12 @@ export default function Admin() {
 
       <main className="space-y-4">
         {loading ? (
-          <div className="text-center py-20 opacity-40 italic font-black uppercase tracking-widest text-[10px]">Accessing Database...</div>
+          <div className="text-center py-20 opacity-40 italic font-black uppercase tracking-widest text-[10px]">Accessing Secure Server...</div>
         ) : activeTab === 'users' ? (
           users.map(u => (
             <div key={u.id} className={`p-5 rounded-3xl border flex items-center justify-between ${card}`}>
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-primary-500 flex items-center justify-center text-white font-black">
+                <div className="w-12 h-12 rounded-2xl bg-primary-500 flex items-center justify-center text-white font-black overflow-hidden">
                   {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover rounded-2xl" /> : u.name?.[0]}
                 </div>
                 <div>
@@ -116,7 +148,7 @@ export default function Admin() {
                   <p className="text-[10px] opacity-40 font-bold uppercase tracking-widest">{u.course || 'Poly Student'}</p>
                 </div>
               </div>
-              <button className="p-3 text-red-500 bg-red-500/10 rounded-xl">
+              <button className="p-3 text-red-500 bg-red-500/10 rounded-xl active:scale-90 transition">
                  <UserX size={18} />
               </button>
             </div>
@@ -126,7 +158,7 @@ export default function Admin() {
             <div key={p.id} className={`p-5 rounded-3xl border ${card}`}>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[10px] font-black text-primary-500 uppercase tracking-widest">@{p.users?.name || 'Unknown'}</p>
-                <button onClick={() => deletePost(p.id)} className="p-2 text-red-500">
+                <button onClick={() => deletePost(p.id)} className="p-2 text-red-500 active:scale-90 transition">
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -136,8 +168,8 @@ export default function Admin() {
           ))
         ) : (
           <div className="flex flex-col items-center justify-center py-20 opacity-20">
-             <ShieldCheck size={48} className="mb-4" />
-             <p className="font-black text-xs uppercase tracking-widest text-center px-10">Campus security protocol active. No critical threats detected.</p>
+             <ShieldCheck size={48} className="mb-4 text-red-500 opacity-50" />
+             <p className="font-black text-xs uppercase tracking-widest text-center px-10">Systems Secured.<br/>No active anomalies detected.</p>
           </div>
         )}
       </main>
