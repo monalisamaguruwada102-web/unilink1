@@ -440,7 +440,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       activeUsersRes,
       latestPollRes
     ] = await Promise.all([
-      supabase.from('course_groups').select('*, users(name, avatar_url)').order('created_at', { ascending: false }).limit(20),
+      supabase.from('course_groups').select('*, users(name, avatar_url), group_members(count)').order('created_at', { ascending: false }).limit(20),
       supabase.from('confessions').select('*').order('created_at', { ascending: false }).limit(20),
       supabase.from('stories')
         .select('*, users(id, name, avatar_url)')
