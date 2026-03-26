@@ -199,18 +199,24 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     if (existing) {
       await supabase.from('confession_reactions').delete().eq('id', existing.id);
       // Update local count
+      const newLikes = Math.max(0, (get().confessions.find(c => c.id === confessionId)?.likes || 1) - 1);
       set(state => ({
         confessions: state.confessions.map(c =>
-          c.id === confessionId ? { ...c, likes: Math.max(0, (c.likes || 1) - 1) } : c
+          c.id === confessionId ? { ...c, likes: newLikes } : c
         )
       }));
+      // Persist count to confessions table
+      await supabase.from('confessions').update({ likes: newLikes }).eq('id', confessionId);
     } else {
       await supabase.from('confession_reactions').insert({ confession_id: confessionId, user_id: userId, emoji: '❤️' });
+      const newLikes = (get().confessions.find(c => c.id === confessionId)?.likes || 0) + 1;
       set(state => ({
         confessions: state.confessions.map(c =>
-          c.id === confessionId ? { ...c, likes: (c.likes || 0) + 1 } : c
+          c.id === confessionId ? { ...c, likes: newLikes } : c
         )
       }));
+      // Persist count to confessions table
+      await supabase.from('confessions').update({ likes: newLikes }).eq('id', confessionId);
     }
   },
 
@@ -225,11 +231,14 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
 
   addConfessionComment: async (confessionId, userId, content) => {
     await supabase.from('confession_comments').insert({ confession_id: confessionId, user_id: userId, content });
+    const newCount = (get().confessions.find(c => c.id === confessionId)?.comment_count || 0) + 1;
     set(state => ({
       confessions: state.confessions.map(c =>
-        c.id === confessionId ? { ...c, comment_count: (c.comment_count || 0) + 1 } : c
+        c.id === confessionId ? { ...c, comment_count: newCount } : c
       )
     }));
+    // Persist count to confessions table
+    await supabase.from('confessions').update({ comment_count: newCount }).eq('id', confessionId);
   },
 
   // ── STORIES ─────────────────────────────────────────────────────────

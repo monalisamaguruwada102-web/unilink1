@@ -288,46 +288,109 @@ export default function Feed() {
         </div>
         
         <div className="grid grid-cols-1 gap-4">
-           {/* Current Poll — Now Clickable */}
-           {currentPoll && (
-             <div className={`p-6 rounded-[2.5rem] border ${isDarkMode ? 'bg-gray-900/50 border-gray-800/50' : 'bg-indigo-500/5 border-indigo-500/10'}`}>
-               <div className="flex items-center gap-2 mb-4">
-                  <motion.span animate={{ opacity: [1, 0.4, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="p-1 px-2 bg-indigo-500 text-white text-[8px] font-black uppercase rounded-lg">● LIVE</motion.span>
-                  <p className="text-[12px] font-black opacity-90">{currentPoll.question}</p>
-               </div>
-               <div className="space-y-2">
-               {currentPoll.options.map((opt, i) => {
-                    const totalVotes = currentPoll.options.reduce((s, o) => s + (o.votes || 0), 0);
-                    const pct = totalVotes > 0 ? Math.round(((opt.votes || 0) / totalVotes) * 100) : 0;
-                    const isVoted = votedPollOption === i;
-                    return (
-                      <button
-                        key={i}
-                        onClick={() => { if (votedPollOption === null) { setVotedPollOption(i); useFeatureStore.getState().voteInPoll(i); } }}
-                        className={`w-full p-4 rounded-2xl border text-left text-[10px] font-black uppercase tracking-widest relative overflow-hidden transition-all active:scale-95 ${
-                          isVoted ? 'border-indigo-500 text-indigo-500' : isDarkMode ? 'bg-gray-800/50 border-gray-700/50' : 'bg-white border-indigo-500/5'
-                        }`}
-                      >
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: votedPollOption !== null ? `${pct}%` : '0%' }}
-                          transition={{ duration: 0.6, ease: 'easeOut' }}
-                          className={`absolute inset-0 ${isVoted ? 'bg-indigo-500/20' : 'bg-gray-500/10'}`}
-                        />
-                        <span className="relative z-10 flex justify-between items-center">
-                          <span>{opt.label}</span>
-                          {votedPollOption !== null && <span className="text-indigo-500 italic">{pct}%</span>}
-                        </span>
-                      </button>
-                    );
-                  })}
-               </div>
-               {votedPollOption === null && (
-                 <p className="text-center text-[8px] font-black uppercase opacity-20 tracking-widest mt-3">Tap an option to vote</p>
-               )}
-             </div>
-           )}
-
+               {/* Current Poll — Premium Quality */}
+           {currentPoll && (() => {
+             const totalVotes = currentPoll.options.reduce((s, o) => s + (o.votes || 0), 0);
+             const isHot = totalVotes >= 10;
+             const winnerIdx = currentPoll.options.reduce((maxI, o, i, arr) => (o.votes || 0) > (arr[maxI].votes || 0) ? i : maxI, 0);
+             return (
+              <div className={`relative rounded-[2.5rem] overflow-hidden border ${isDarkMode ? 'bg-gradient-to-br from-gray-900 via-indigo-950/30 to-gray-900 border-indigo-500/20' : 'bg-gradient-to-br from-white via-indigo-50 to-white border-indigo-500/10 shadow-xl shadow-indigo-500/5'}`}>
+                {/* Decorative glow */}
+                <div className="absolute top-0 right-0 w-40 h-40 bg-indigo-500/10 rounded-full -mr-20 -mt-20 blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-32 h-32 bg-violet-500/10 rounded-full -ml-16 -mb-16 blur-3xl" />
+                
+                <div className="relative z-10 p-7">
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-5">
+                    <div className="flex items-center gap-2">
+                      <motion.span animate={{ opacity: [1, 0.4, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="p-1.5 px-3 bg-gradient-to-r from-indigo-500 to-violet-500 text-white text-[8px] font-black uppercase rounded-xl shadow-lg shadow-indigo-500/30">● LIVE POLL</motion.span>
+                      {isHot && (
+                        <motion.span 
+                          initial={{ scale: 0 }} 
+                          animate={{ scale: 1 }} 
+                          className="p-1.5 px-3 bg-gradient-to-r from-orange-500 to-red-500 text-white text-[8px] font-black uppercase rounded-xl shadow-lg shadow-orange-500/30 flex items-center gap-1"
+                        >
+                          🔥 HOT
+                        </motion.span>
+                      )}
+                    </div>
+                    <div className={`px-3 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest ${isDarkMode ? 'bg-white/5 text-white/40' : 'bg-gray-100 text-gray-400'}`}>
+                      {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}
+                    </div>
+                  </div>
+                  
+                  {/* Question */}
+                  <h4 className="text-[15px] font-black tracking-tight mb-6 leading-snug">{currentPoll.question}</h4>
+                  
+                  {/* Options */}
+                  <div className="space-y-3">
+                    {currentPoll.options.map((opt, i) => {
+                      const pct = totalVotes > 0 ? Math.round(((opt.votes || 0) / totalVotes) * 100) : 0;
+                      const isVoted = votedPollOption === i;
+                      const isWinner = votedPollOption !== null && i === winnerIdx && totalVotes > 0;
+                      return (
+                        <motion.button
+                          key={i}
+                          whileTap={{ scale: votedPollOption === null ? 0.97 : 1 }}
+                          onClick={() => { if (votedPollOption === null) { setVotedPollOption(i); useFeatureStore.getState().voteInPoll(i); } }}
+                          className={`w-full p-5 rounded-[1.5rem] border text-left relative overflow-hidden transition-all duration-300 ${
+                            isVoted 
+                              ? 'border-indigo-500 ring-2 ring-indigo-500/20 shadow-lg shadow-indigo-500/10' 
+                              : isWinner
+                                ? (isDarkMode ? 'border-indigo-500/30 bg-indigo-500/5' : 'border-indigo-500/20 bg-indigo-50')
+                                : isDarkMode ? 'bg-gray-800/50 border-gray-700/50 hover:border-indigo-500/30' : 'bg-white border-gray-200 hover:border-indigo-500/20'
+                          }`}
+                        >
+                          {/* Progress bar */}
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: votedPollOption !== null ? `${pct}%` : '0%' }}
+                            transition={{ duration: 0.8, ease: 'easeOut', delay: 0.1 }}
+                            className={`absolute inset-0 rounded-[1.5rem] ${
+                              isVoted 
+                                ? 'bg-gradient-to-r from-indigo-500/25 to-violet-500/15' 
+                                : isWinner 
+                                  ? 'bg-gradient-to-r from-indigo-500/15 to-violet-500/10'
+                                  : 'bg-gray-500/5'
+                            }`}
+                          />
+                          <span className="relative z-10 flex justify-between items-center">
+                            <span className="flex items-center gap-2">
+                              {isWinner && votedPollOption !== null && <span className="text-sm">👑</span>}
+                              <span className={`text-[11px] font-black uppercase tracking-widest ${isVoted ? 'text-indigo-500' : ''}`}>{opt.label}</span>
+                            </span>
+                            {votedPollOption !== null && (
+                              <motion.span 
+                                initial={{ opacity: 0, x: 10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: 0.3 }}
+                                className={`text-[12px] font-black ${isVoted ? 'text-indigo-500' : isWinner ? 'text-indigo-400' : 'opacity-40'}`}
+                              >
+                                {pct}%
+                              </motion.span>
+                            )}
+                          </span>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                  
+                  {votedPollOption === null && (
+                    <p className="text-center text-[8px] font-black uppercase opacity-20 tracking-[0.25em] mt-5">Tap an option to cast your vote</p>
+                  )}
+                  {votedPollOption !== null && totalVotes > 0 && (
+                    <motion.p 
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-center text-[8px] font-black uppercase tracking-[0.25em] mt-5 text-indigo-500/60"
+                    >
+                      ✓ Your vote has been recorded
+                    </motion.p>
+                  )}
+                </div>
+              </div>
+             );
+           })()}
            {/* Secrets — Horizontally Scrollable with Reactions */}
            <div className="space-y-4">
               <div className="flex items-center justify-between">

@@ -3,6 +3,10 @@
 -- Run this in Supabase SQL Editor
 -- ============================================
 
+-- 0. Allow updating confession counters (likes, comment_count)
+DROP POLICY IF EXISTS "Anyone can update confession counters" ON confessions;
+CREATE POLICY "Anyone can update confession counters" ON confessions FOR UPDATE USING (true);
+
 -- 1. CONFESSION REACTIONS (like/react to anonymous confessions)
 CREATE TABLE IF NOT EXISTS confession_reactions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
