@@ -123,4 +123,54 @@ BEGIN
   END IF;
 END $$;
 
+-- 5. FIX LIKES SYNC (Automatic Counts for all students)
+-- This ensures that when ANY student likes a post or confession, the count updates for EVERYONE instantly.
+
+-- A. For Posts
+CREATE OR REPLACE FUNCTION sync_post_likes_count()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (TG_OP = 'INSERT') THEN
+    UPDATE public.posts SET likes = COALESCE(likes, 0) + 1 WHERE id = NEW.post_id;
+  ELSIF (TG_OP = 'DELETE') THEN
+    UPDATE public.posts SET likes = GREATEST(0, COALESCE(likes, 0) - 1) WHERE id = OLD.post_id;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tr_sync_post_likes ON public.post_likes;
+CREATE TRIGGER tr_sync_post_likes
+  AFTER INSERT OR DELETE ON public.post_likes
+  FOR EACH ROW EXECUTE FUNCTION sync_post_likes_count();
+
+-- B. For Confessions
+CREATE OR REPLACE FUNCTION sync_confession_likes_count()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (TG_OP = 'INSERT') THEN
+    UPDATE public.confessions SET likes = COALESCE(likes, 0) + 1 WHERE id = NEW.confession_id;
+  ELSIF (TG_OP = 'DELETE') THEN
+    UPDATE public.confessions SET likes = GREATEST(0, COALESCE(likes, 0) - 1) WHERE id = OLD.confession_id;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tr_sync_confession_likes ON public.confession_reactions;
+CREATE TRIGGER tr_sync_confession_likes
+  AFTER INSERT OR DELETE ON public.confession_reactions
+  FOR EACH ROW EXECUTE FUNCTION sync_confession_likes_count();
+
+-- C. Enable Realtime for the parent tables so UI updates as count changes
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'posts') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE posts;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'confessions') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE confessions;
+  END IF;
+END $$;
+
 -- MIGRATION COMPLETE

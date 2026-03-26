@@ -198,15 +198,14 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
 
     if (existing) {
       await supabase.from('confession_reactions').delete().eq('id', existing.id);
-      // Update local count
+      // Update local count optimistically
       const newLikes = Math.max(0, (get().confessions.find(c => c.id === confessionId)?.likes || 1) - 1);
       set(state => ({
         confessions: state.confessions.map(c =>
           c.id === confessionId ? { ...c, likes: newLikes } : c
         )
       }));
-      // Persist count to confessions table
-      await supabase.from('confessions').update({ likes: newLikes }).eq('id', confessionId);
+      // Count update is now handled by DB trigger tr_sync_confession_likes
     } else {
       await supabase.from('confession_reactions').insert({ confession_id: confessionId, user_id: userId, emoji: '❤️' });
       const newLikes = (get().confessions.find(c => c.id === confessionId)?.likes || 0) + 1;
@@ -215,8 +214,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
           c.id === confessionId ? { ...c, likes: newLikes } : c
         )
       }));
-      // Persist count to confessions table
-      await supabase.from('confessions').update({ likes: newLikes }).eq('id', confessionId);
+      // Count update is now handled by DB trigger tr_sync_confession_likes
     }
   },
 
@@ -540,10 +538,10 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
               : [{ ...(payload.new as Confession), likes: payload.new.likes || 0, comment_count: payload.new.comment_count || 0 }, ...state.confessions] 
           }));
         } else if (payload.eventType === 'UPDATE') {
-          // Preserve updated likes/comment_count from DB
+          // Use nullish coalescing (??) because 0 is a valid count and would be ignored by ||
           set((state) => ({
             confessions: state.confessions.map(c => 
-              c.id === payload.new.id ? { ...c, likes: payload.new.likes || c.likes, comment_count: payload.new.comment_count || c.comment_count } : c
+              c.id === payload.new.id ? { ...c, likes: payload.new.likes ?? c.likes, comment_count: payload.new.comment_count ?? c.comment_count } : c
             )
           }));
         }
@@ -571,12 +569,14 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
            notifications: [payload.new, ...state.notifications]
         }));
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'post_likes' }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'post_likes' }, async (payload: any) => {
         const myId = (await supabase.auth.getSession()).data.session?.user.id;
         if (payload.eventType === 'INSERT') {
           const isMe = payload.new.user_id === myId;
           set(state => ({
-            postLikes: [...state.postLikes, payload.new as PostLike],
+            postLikes: state.postLikes.some(pl => pl.post_id === payload.new.post_id && pl.user_id === payload.new.user_id) 
+              ? state.postLikes 
+              : [...state.postLikes, payload.new as PostLike],
             posts: state.posts.map(p => p.id === payload.new.post_id 
               ? { ...p, is_liked: isMe ? true : p.is_liked } 
               : p
@@ -592,7 +592,8 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
             )
           }));
         }
-      });
+      })
+      .subscribe();
       
     channel.subscribe();
   },
