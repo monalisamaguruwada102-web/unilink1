@@ -18,6 +18,8 @@ import Profile from './pages/Profile';
 import GroupChat from './pages/GroupChat';
 import Admin from './pages/Admin';
 
+import AuthCallback from './pages/AuthCallback';
+
 export default function App() {
   const { session, profile, setSession, fetchProfile, loading } = useAuthStore();
   const { isDarkMode, fetchFeatures } = useFeatureStore();
@@ -116,13 +118,17 @@ export default function App() {
     );
   }
 
-  if (!session) {
-    return <Auth />;
-  }
-
   return (
     <BrowserRouter>
-      <AppLayout isDarkMode={isDarkMode} />
+      <Routes>
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route 
+          path="*" 
+          element={
+            !session ? <Auth /> : <AppLayout isDarkMode={isDarkMode} />
+          } 
+        />
+      </Routes>
     </BrowserRouter>
   );
 }

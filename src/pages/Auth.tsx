@@ -32,7 +32,7 @@ export default function Auth() {
         if (loginError) throw loginError;
       } else {
         // Sign up with extra metadata and dynamic redirect (NOT localhost in production)
-        const redirectUrl = `${window.location.origin}/auth/callback?redirect_to=/`;
+        const redirectUrl = `${window.location.origin}/auth/callback`;
         
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
@@ -53,21 +53,35 @@ export default function Auth() {
         if (signUpError) throw signUpError;
         
         if (data.user) {
-          // Manual profile creation to ensure data is synced
-          await supabase.from('users').upsert({
-             id: data.user.id,
-             email,
-             name,
-             department,
-             college: 'Kwekwe Polytechnic',
-             updated_at: new Date().toISOString()
-          });
-          
           setShowConfirmSent(true);
         }
       }
     } catch (err: any) {
       setError(err.message || 'Authentication failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!email) {
+      setError('Please enter your email to resend link');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: {
+           emailRedirectTo: `${window.location.origin}/auth/callback`,
+        }
+      });
+      if (error) throw error;
+      alert('Verification link resent!');
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -157,7 +171,7 @@ export default function Auth() {
                 </p>
                 <div className="flex flex-col gap-3">
                    <button onClick={() => { setShowConfirmSent(false); setIsLogin(true); }} className="w-full py-5 rounded-2xl bg-primary-500 text-white font-black text-[10px] uppercase shadow-lg shadow-primary-500/30">Back to Login</button>
-                   <button onClick={() => window.location.reload()} className="w-full py-5 rounded-2xl bg-white/5 text-white/40 font-black text-[10px] uppercase tracking-widest">Resend Link</button>
+                   <button onClick={handleResend} disabled={loading} className="w-full py-5 rounded-2xl bg-white/5 text-white/40 font-black text-[10px] uppercase tracking-widest disabled:opacity-50">Resend Link</button>
                 </div>
              </div>
           </motion.div>
