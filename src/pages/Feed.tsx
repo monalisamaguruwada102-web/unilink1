@@ -28,6 +28,9 @@ export default function Feed() {
   const [activeComments, setActiveComments] = useState<any[]>([]);
   const [confessionText, setConfessionText] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [activeConfession, setActiveConfession] = useState<any>(null);
+  const [confessionComments, setConfessionComments] = useState<any[]>([]);
+  const [confessionCommentText, setConfessionCommentText] = useState('');
 
   // Story state
   const [storyFile, setStoryFile] = useState<File | null>(null);
@@ -42,8 +45,8 @@ export default function Feed() {
   const { session, profile } = useAuthStore();
   const { 
     stories, posts, isDarkMode, confessions, notifications, currentPoll, onlineCount,
-    fetchFeatures, fetchComments,
-    likePost, unlikePost, addComment, viewStory, reactToStory,
+    fetchFeatures, fetchComments, reactToConfession, fetchConfessionComments, addConfessionComment,
+    likePost, unlikePost, addComment, viewStory,
     submitStoryWithPoll, addStory, voteInStoryPoll, deletePost, createPost,
     markNotificationsRead, clearNotifications, submitConfession, createPoll
   } = useFeatureStore();
@@ -325,21 +328,62 @@ export default function Feed() {
              </div>
            )}
 
-           {/* Secrets — always visible */}
-           <div className={`p-5 rounded-[2.5rem] border flex items-center gap-4 relative ${isDarkMode ? 'bg-pink-500/5 border-pink-500/10' : 'bg-pink-50 border-pink-100'}`}>
-              <div className="w-12 h-12 rounded-2xl bg-pink-500 text-white flex items-center justify-center shadow-lg shadow-pink-500/20 shrink-0">
-                 <Hash size={20} />
+           {/* Secrets — Horizontally Scrollable with Reactions */}
+           <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-pink-500 text-white flex items-center justify-center shadow-lg shadow-pink-500/20">
+                    <Hash size={14} />
+                  </div>
+                  <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-pink-400' : 'text-pink-600'}`}>Campus Confessions</p>
+                </div>
+                <button
+                  onClick={() => setShowConfessionModal(true)}
+                  className="flex items-center gap-1 bg-pink-500 text-white px-3 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest active:scale-95 transition shadow-lg shadow-pink-500/30"
+                >
+                  <Plus size={12} /> Add
+                </button>
               </div>
-              <div className="flex-1 overflow-hidden">
-                 <p className="text-[9px] font-black uppercase text-pink-600 mb-1 opacity-60">Campus Confessions</p>
-                 <p className="text-xs font-bold italic truncate opacity-80">{confessions.length > 0 ? `"${confessions[0].content}"` : 'Be the first to whisper...'}</p>
+
+              <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-2 -mx-2 px-2">
+                {confessions.length === 0 ? (
+                  <div onClick={() => setShowConfessionModal(true)} className={`flex-shrink-0 w-60 p-6 rounded-[2rem] border-2 border-dashed cursor-pointer transition hover:border-pink-500/40 ${isDarkMode ? 'border-gray-800 text-gray-500' : 'border-gray-200 text-gray-400'}`}>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-center">Be the first to whisper...</p>
+                  </div>
+                ) : confessions.map(confession => (
+                  <div
+                    key={confession.id}
+                    className={`flex-shrink-0 w-64 p-5 rounded-[2rem] border flex flex-col justify-between transition-all hover:shadow-lg ${
+                      isDarkMode ? 'bg-pink-500/5 border-pink-500/10' : 'bg-pink-50 border-pink-100'
+                    }`}
+                  >
+                    <p className="text-xs font-bold italic leading-relaxed opacity-80 mb-4 line-clamp-4">"{confession.content}"</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => session && reactToConfession(confession.id, session.user.id)}
+                          className="flex items-center gap-1 text-pink-500 text-[10px] font-black active:scale-90 transition"
+                        >
+                          <Heart size={14} fill="currentColor" /> {confession.likes || 0}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setActiveConfession(confession);
+                            const comments = await fetchConfessionComments(confession.id);
+                            setConfessionComments(comments);
+                          }}
+                          className="flex items-center gap-1 opacity-50 text-[10px] font-black"
+                        >
+                          <MessageCircle size={14} /> {confession.comment_count || 0}
+                        </button>
+                      </div>
+                      <span className="text-[8px] font-black uppercase opacity-30 tracking-widest">
+                        {new Date(confession.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <button
-                onClick={() => setShowConfessionModal(true)}
-                className="shrink-0 flex items-center gap-1 bg-pink-500 text-white px-3 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest active:scale-95 transition shadow-lg shadow-pink-500/30"
-              >
-                <Plus size={12} /> Add
-              </button>
            </div>
         </div>
       </div>
@@ -673,9 +717,6 @@ export default function Feed() {
                   </div>
                 )}
              </div>
-             <div className="p-12 flex justify-center gap-8">
-               {['❤️', '🔥', '😂', '🙌'].map(e => <button key={e} onClick={() => { reactToStory(activeStory.id, activeStory.user_id, session?.user.id || '', e); setActiveStory(null); }} className="text-4xl hover:scale-125 hover:rotate-6 transition active:scale-90">{e}</button>)}
-             </div>
            </motion.div>
         )}
       </AnimatePresence>
@@ -799,6 +840,85 @@ export default function Feed() {
               </motion.div>
            </motion.div>
          )}
+      </AnimatePresence>
+
+      {/* 💬 CONFESSION DISCUSSION MODAL */}
+      <AnimatePresence>
+        {activeConfession && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[250] bg-black/80 backdrop-blur-xl flex items-end">
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className={`w-full max-h-[85vh] flex flex-col rounded-t-[3.5rem] ${isDarkMode ? 'bg-gray-900 border-t border-gray-800' : 'bg-white border-t border-gray-100'}`}
+            >
+              <div className="p-8 border-b border-gray-500/10">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-black uppercase italic tracking-widest text-[10px] text-pink-500">Confession Discussion</h3>
+                  <button onClick={() => { setActiveConfession(null); setConfessionComments([]); setConfessionCommentText(''); }} className="p-3 bg-gray-500/10 rounded-2xl"><X size={20} /></button>
+                </div>
+                <div className={`p-5 rounded-[2rem] border ${isDarkMode ? 'bg-pink-500/5 border-pink-500/10' : 'bg-pink-50 border-pink-100'}`}>
+                  <p className="text-sm font-bold italic leading-relaxed opacity-80">"{activeConfession.content}"</p>
+                  <div className="flex items-center gap-3 mt-3">
+                    <button
+                      onClick={() => session && reactToConfession(activeConfession.id, session.user.id)}
+                      className="flex items-center gap-1 text-pink-500 text-[10px] font-black active:scale-90 transition"
+                    >
+                      <Heart size={14} fill="currentColor" /> {activeConfession.likes || 0}
+                    </button>
+                    <span className="text-[8px] font-black uppercase opacity-30 tracking-widest">
+                      {new Date(activeConfession.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                {confessionComments.length === 0 && (
+                  <p className="text-center py-12 opacity-30 font-black text-[10px] uppercase tracking-[0.2em]">No discussions yet.<br/>Be the first to chime in!</p>
+                )}
+                {confessionComments.map((c: any) => (
+                  <div key={c.id} className="flex gap-4">
+                    <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
+                      {c.users?.avatar_url ? <img src={c.users.avatar_url} className="w-full h-full object-cover" alt="" /> : null}
+                    </div>
+                    <div className="flex-1 bg-gray-500/5 p-4 rounded-2xl">
+                      <div className="flex justify-between items-center mb-1">
+                        <p className="font-black text-xs">{c.users?.name || 'Student'}</p>
+                        <span className="text-[8px] opacity-40 uppercase tracking-widest">{new Date(c.created_at).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-sm opacity-80">{c.content}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-8 pb-12 border-t border-gray-500/10 flex gap-4 items-center">
+                <input
+                  value={confessionCommentText}
+                  onChange={e => setConfessionCommentText(e.target.value)}
+                  placeholder="Share your thoughts..."
+                  className={`flex-1 p-5 rounded-2xl outline-none font-bold text-sm ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200 border'}`}
+                />
+                <button
+                  onClick={async () => {
+                    if (!confessionCommentText.trim() || !session || !activeConfession) return;
+                    await addConfessionComment(activeConfession.id, session.user.id, confessionCommentText);
+                    setConfessionCommentText('');
+                    const updated = await fetchConfessionComments(activeConfession.id);
+                    setConfessionComments(updated);
+                    setActiveConfession({ ...activeConfession, comment_count: (activeConfession.comment_count || 0) + 1 });
+                  }}
+                  disabled={!confessionCommentText.trim()}
+                  className="w-16 h-16 bg-pink-500 text-white rounded-2xl flex items-center justify-center shadow-2xl shadow-pink-500/30 active:scale-90 transition disabled:opacity-50"
+                >
+                  <Send size={24} />
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );

@@ -18,6 +18,7 @@ export default function Discover() {
   const [selectedZone, setSelectedZone] = useState('');
   const [selectedDept, setSelectedDept] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [genderFilter, setGenderFilter] = useState('');
 
   const { session, profile: myProfile } = useAuthStore();
   const { isDarkMode } = useFeatureStore();
@@ -25,7 +26,7 @@ export default function Discover() {
 
   useEffect(() => { 
     fetchProfiles(); 
-  }, [searchQuery, discoveryMode, selectedZone, selectedDept]);
+  }, [searchQuery, discoveryMode, selectedZone, selectedDept, genderFilter]);
 
   const fetchProfiles = async () => {
     if (!session?.user?.id) return;
@@ -38,7 +39,14 @@ export default function Discover() {
         .select('id, name, age, course, bio, avatar_url, college, latitude, longitude, is_study_buddy_mode, department, campus_zone, is_verified, gender')
         .neq('id', session.user.id);
 
-      // Gender Matching removed to ensure profiles always show
+      // Gender Filtering (smart defaults + manual override)
+      if (genderFilter) {
+        query = query.eq('gender', genderFilter);
+      } else if (myProfile?.gender === 'male') {
+        query = query.eq('gender', 'female');
+      } else if (myProfile?.gender === 'female') {
+        query = query.eq('gender', 'male');
+      }
 
       if (discoveryMode === 'study') {
         query = query.eq('is_study_buddy_mode', true);
@@ -59,7 +67,20 @@ export default function Discover() {
         .limit(searchQuery ? 100 : 20);
 
       if (error) throw error;
-      setProfiles(data || []);
+      
+      // Sort by distance if user has location enabled
+      let sorted = data || [];
+      if (myProfile?.latitude && myProfile?.longitude && sorted.length > 0) {
+        const myLat = myProfile.latitude as number;
+        const myLng = myProfile.longitude as number;
+        sorted = [...sorted].sort((a: any, b: any) => {
+          const distA = (a.latitude && a.longitude) ? parseFloat(calculateDistance(myLat, myLng, a.latitude, a.longitude) || '9999') : 9999;
+          const distB = (b.latitude && b.longitude) ? parseFloat(calculateDistance(myLat, myLng, b.latitude, b.longitude) || '9999') : 9999;
+          return distA - distB;
+        });
+      }
+
+      setProfiles(sorted);
       setCurrentIndex(0);
     } catch (err) {
       console.error('Discover error:', err);
@@ -208,7 +229,7 @@ export default function Discover() {
               exit={{ height: 0, opacity: 0 }}
               className="mt-2 overflow-hidden space-y-4 px-1"
             >
-               <div className="grid grid-cols-2 gap-3 pb-2">
+               <div className="grid grid-cols-3 gap-3 pb-2">
                   <select 
                     value={selectedZone}
                     onChange={(e) => setSelectedZone(e.target.value)}
@@ -229,6 +250,15 @@ export default function Discover() {
                     <option value="IT">IT</option>
                     <option value="Engineering">Engineering</option>
                     <option value="Commerce">Commerce</option>
+                  </select>
+                  <select 
+                    value={genderFilter}
+                    onChange={(e) => setGenderFilter(e.target.value)}
+                    className={`px-4 py-3 rounded-2xl text-[10px] font-bold uppercase tracking-widest outline-none border ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white'}`}
+                  >
+                    <option value="">Auto Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
                   </select>
                </div>
             </motion.div>
@@ -362,7 +392,12 @@ export default function Discover() {
                        <MapPin size={10} className="text-primary-400" />
                        <span className="text-[10px] font-black uppercase tracking-widest">
                          { (myProfile?.latitude && myProfile?.longitude && currentProfile?.latitude && currentProfile?.longitude) 
-                           ? `${calculateDistance(myProfile.latitude, myProfile.longitude, currentProfile.latitude, currentProfile.longitude)} km away`
+                           ? (() => {
+                               const dist = parseFloat(calculateDistance(myProfile.latitude, myProfile.longitude, currentProfile.latitude, currentProfile.longitude) || '0');
+                               if (dist < 0.5) return '< 500m away';
+                               if (dist < 1) return '< 1 km away';
+                               return `~${Math.round(dist)} km away`;
+                             })()
                            : 'Nearby campus'}
                        </span>
                     </div>

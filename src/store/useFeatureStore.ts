@@ -14,15 +14,6 @@ interface Story {
   is_verified?: boolean;
 }
 
-interface Event {
-  id: string;
-  title: string;
-  location: string;
-  date: string;
-  attendees: number;
-  category: string;
-}
-
 interface PollOption {
   label: string;
   votes: number;
@@ -32,17 +23,7 @@ interface Poll {
   id: string;
   question: string;
   options: PollOption[];
-}
-
-interface CourseGroup {
-  id: string;
-  name: string;
-  course: string;
-  description: string;
-  created_by: string;
-  created_at: string;
-  member_count?: number;
-  users?: { name: string; avatar_url: string };
+  creator_id?: string;
 }
 
 interface CourseGroup {
@@ -77,6 +58,8 @@ interface Confession {
   id: string;
   content: string;
   tags: string[];
+  likes: number;
+  comment_count: number;
   created_at: string;
 }
 
@@ -93,20 +76,15 @@ interface FeatureState {
   isStudyMode: boolean;
   isBoosted: boolean;
   boostEndTime: number | null;
-  referralPoints: number;
-  badges: string[];
-  mood: { emoji: string; text: string } | null;
-  vibeLabels: string[];
   
   stories: Story[];
   posts: Post[];
-  events: Event[];
   currentPoll: Poll | null;
   courseGroups: CourseGroup[];
   confessions: Confession[];
   notifications: any[];
   postLikes: PostLike[];
-  crushList: string[]; // List of crush IDs
+  crushList: string[];
   storyPollResponses: StoryPollResponse[];
   onlineCount: number;
 
@@ -115,13 +93,13 @@ interface FeatureState {
   setLurkMode: (val: boolean) => void;
   setStudyMode: (val: boolean) => void;
   triggerBoost: () => void;
-  setMood: (mood: { emoji: string; text: string }) => void;
-  addVibeLabel: (label: string) => void;
   
   // Actions
   voteInPoll: (optionIndex: number) => Promise<void>;
   submitConfession: (content: string, tags: string[]) => Promise<void>;
-  joinEvent: (eventId: string) => Promise<void>;
+  reactToConfession: (confessionId: string, userId: string) => Promise<void>;
+  fetchConfessionComments: (confessionId: string) => Promise<any[]>;
+  addConfessionComment: (confessionId: string, userId: string, content: string) => Promise<void>;
   addStory: (userId: string, userName: string, imageUrl: string) => Promise<void>;
   viewStory: (storyId: string, userId: string) => Promise<void>;
   reactToStory: (storyId: string, ownerId: string, userId: string, emoji: string) => Promise<void>;
@@ -155,14 +133,9 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   isStudyMode: false,
   isBoosted: false,
   boostEndTime: null,
-  referralPoints: 120,
-  badges: ['Early Adopter', 'Verified Student'],
-  mood: { emoji: '📚', text: 'Stressed but blessed' },
-  vibeLabels: ['Night Owl', 'Library Resident', 'Coffee Addict'],
   
   stories: [],
   posts: [],
-  events: [],
   currentPoll: null,
   courseGroups: [],
   confessions: [],
@@ -183,30 +156,83 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     setTimeout(() => set({ isBoosted: false, boostEndTime: null }), 60 * 60 * 1000);
   },
 
-  setMood: (mood) => set({ mood }),
-  addVibeLabel: (label) => set((state) => ({ vibeLabels: [...state.vibeLabels, label] })),
-  
+  // ── POLL VOTING (PERSISTED TO DB + NOTIFICATIONS) ───────────────────
   voteInPoll: async (optionIndex) => {
     const poll = get().currentPoll;
     if (!poll) return;
     const updatedOptions = [...poll.options];
     updatedOptions[optionIndex].votes += 1;
     set({ currentPoll: { ...poll, options: updatedOptions } });
-    // Production: update poll_options table
+
+    // Persist to database
+    await supabase.from('campus_polls')
+      .update({ options: updatedOptions })
+      .eq('id', poll.id);
+
+    // Notify poll creator
+    const myId = (await supabase.auth.getSession()).data.session?.user.id;
+    if (poll.creator_id && poll.creator_id !== myId && myId) {
+      await supabase.from('notifications').insert({
+        user_id: poll.creator_id,
+        sender_id: myId,
+        type: 'poll_vote',
+        content: `voted on your poll: "${poll.question}"`
+      });
+    }
   },
 
+  // ── CONFESSIONS ─────────────────────────────────────────────────────
   submitConfession: async (content, tags) => {
     const { data } = await supabase.from('confessions').insert({ content, tags }).select().single();
-    if (data) set((state) => ({ confessions: [data, ...state.confessions] }));
+    if (data) set((state) => ({ confessions: [{ ...data, likes: 0, comment_count: 0 }, ...state.confessions] }));
   },
 
-  joinEvent: async (eventId) => {
-    // Increment attendees
-    set((state) => ({
-      events: state.events.map(e => e.id === eventId ? { ...e, attendees: e.attendees + 1 } : e)
+  reactToConfession: async (confessionId, userId) => {
+    // Toggle reaction (upsert, or delete if already exists)
+    const { data: existing } = await supabase
+      .from('confession_reactions')
+      .select('id')
+      .eq('confession_id', confessionId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase.from('confession_reactions').delete().eq('id', existing.id);
+      // Update local count
+      set(state => ({
+        confessions: state.confessions.map(c =>
+          c.id === confessionId ? { ...c, likes: Math.max(0, (c.likes || 1) - 1) } : c
+        )
+      }));
+    } else {
+      await supabase.from('confession_reactions').insert({ confession_id: confessionId, user_id: userId, emoji: '❤️' });
+      set(state => ({
+        confessions: state.confessions.map(c =>
+          c.id === confessionId ? { ...c, likes: (c.likes || 0) + 1 } : c
+        )
+      }));
+    }
+  },
+
+  fetchConfessionComments: async (confessionId) => {
+    const { data } = await supabase
+      .from('confession_comments')
+      .select('*, users(name, avatar_url)')
+      .eq('confession_id', confessionId)
+      .order('created_at', { ascending: true });
+    return data || [];
+  },
+
+  addConfessionComment: async (confessionId, userId, content) => {
+    await supabase.from('confession_comments').insert({ confession_id: confessionId, user_id: userId, content });
+    set(state => ({
+      confessions: state.confessions.map(c =>
+        c.id === confessionId ? { ...c, comment_count: (c.comment_count || 0) + 1 } : c
+      )
     }));
   },
 
+  // ── STORIES ─────────────────────────────────────────────────────────
   addStory: async (userId, userName, imageUrl) => {
     const { data } = await supabase.from('stories').insert({ user_id: userId, image_url: imageUrl }).select().single();
     if (data) {
@@ -231,9 +257,6 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   createPost: async (userId, content, imageUrl) => {
     const insertData: any = { user_id: userId, content };
     if (imageUrl) insertData.image_url = imageUrl;
-    
-    // Ensure we don't accidentally treat secrets/confessions as posts
-    // (This is just a logical guard, as confessons are handled in a different flow)
     
     const { data, error } = await supabase.from('posts').insert(insertData).select('*, users(name, avatar_url, course)').single();
     if (error) throw error;
@@ -320,12 +343,12 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
 
   addPost: (post) => set(state => ({ posts: [post, ...state.posts] })),
 
+  // ── LIKE / UNLIKE (WITH DB PERSIST + RPC FALLBACK) ──────────────────
   likePost: async (postId, postOwnerId, likerId) => {
-    // Check if already liked
     const alreadyLiked = get().postLikes.some(pl => pl.post_id === postId && pl.user_id === likerId);
     if (alreadyLiked) return;
 
-    // Optimistically update
+    // Optimistic update
     set(state => ({
       postLikes: [...state.postLikes, { post_id: postId, user_id: likerId }],
       posts: state.posts.map(p => p.id === postId ? { ...p, likes: (p.likes || 0) + 1, is_liked: true } : p)
@@ -335,10 +358,9 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       const { error } = await supabase.from('post_likes').insert({ post_id: postId, user_id: likerId });
       if (error) throw error;
       
-      // Secondary explicit increment as fallback for triggers
+      // Fallback increment
       await supabase.rpc('increment_likes', { post_id: postId });
 
-      // Notify owner
       if (postOwnerId !== likerId) {
          await supabase.from('notifications').insert({
            user_id: postOwnerId,
@@ -358,7 +380,6 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   },
 
   unlikePost: async (postId, likerId) => {
-    // Optimistically remove
     set(state => ({
       postLikes: state.postLikes.filter(pl => !(pl.post_id === postId && pl.user_id === likerId)),
       posts: state.posts.map(p => p.id === postId ? { ...p, likes: Math.max(0, (p.likes || 1) - 1), is_liked: false } : p)
@@ -368,7 +389,6 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       const { error } = await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', likerId);
       if (error) throw error;
     } catch (err) {
-      // Rollback not trivial here, but the trigger will sync it and periodic fetch will fix it
       console.error('Unlike failed:', err);
     }
   },
@@ -381,7 +401,6 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   addComment: async (postId, userId, postOwnerId, content) => {
     await supabase.from('post_comments').insert({ post_id: postId, user_id: userId, content });
     
-    // Notify owner
     if (postOwnerId !== userId) {
        await supabase.from('notifications').insert({
          user_id: postOwnerId,
@@ -401,6 +420,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     return data || null;
   },
 
+  // ── MAIN DATA FETCH ─────────────────────────────────────────────────
   fetchFeatures: async () => {
     const [
       groupsRes,
@@ -415,7 +435,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       latestPollRes
     ] = await Promise.all([
       supabase.from('course_groups').select('*, users(name, avatar_url)').order('created_at', { ascending: false }).limit(20),
-      supabase.from('confessions').select('*').order('created_at', { ascending: false }).limit(10),
+      supabase.from('confessions').select('*').order('created_at', { ascending: false }).limit(20),
       supabase.from('stories')
         .select('*, users(id, name, avatar_url)')
         .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
@@ -431,17 +451,15 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     const myId = (await supabase.auth.getSession()).data.session?.user.id;
 
     if (groupsRes.data) set({ courseGroups: groupsRes.data.map((g: any) => ({ ...g, member_count: g.group_members?.[0]?.count || 0 })) });
-    if (confessionsRes.data) set({ confessions: confessionsRes.data });
+    if (confessionsRes.data) set({ confessions: confessionsRes.data.map((c: any) => ({ ...c, likes: c.likes || 0, comment_count: c.comment_count || 0 })) });
     if (likesRes.data) set({ postLikes: likesRes.data });
     if (notificationsRes.data) set({ notifications: notificationsRes.data });
     if (crushRes.data) set({ crushList: crushRes.data.map((c: any) => c.crush_id) });
     if (pollsRes.data) set({ storyPollResponses: pollsRes.data });
     
-    // index 8 is the online count
-    const activeUsersCount = activeUsersRes?.count || Math.floor(Math.random() * 50) + 10;
+    const activeUsersCount = activeUsersRes?.count || 0;
     set({ onlineCount: activeUsersCount });
 
-    // index 9 is the latest campus poll
     const latestPoll = latestPollRes?.data;
     if (latestPoll) {
        set({ currentPoll: latestPoll });
@@ -472,7 +490,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     }
 
     // ==========================================
-    // 🟠 REACTIVE REALTIME ENGINE SUBSCRIPTIONS
+    // REACTIVE REALTIME ENGINE SUBSCRIPTIONS
     // ==========================================
     const channel = supabase.channel('poly_social_network')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, async (payload) => {
@@ -505,7 +523,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
               : [{ ...payload.new, user_name: userData?.name || 'New Student', is_viewed: false }, ...state.stories] 
           }));
         } else if (payload.eventType === 'DELETE') {
-          set((state) => ({ stories: state.stories.filter(s => s.id === payload.old.id) }));
+          set((state) => ({ stories: state.stories.filter(s => s.id !== payload.old.id) }));
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'confessions' }, (payload) => {
@@ -513,7 +531,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
           set((state) => ({ 
             confessions: state.confessions.some(c => c.id === payload.new.id) 
               ? state.confessions 
-              : [payload.new as Confession, ...state.confessions] 
+              : [{ ...(payload.new as Confession), likes: 0, comment_count: 0 }, ...state.confessions] 
           }));
         }
       })
