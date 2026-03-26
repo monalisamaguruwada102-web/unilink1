@@ -42,10 +42,12 @@ export default function Discover() {
       // Gender Filtering (smart defaults + manual override)
       if (genderFilter) {
         query = query.eq('gender', genderFilter);
-      } else if (myProfile?.gender === 'male') {
-        query = query.eq('gender', 'female');
-      } else if (myProfile?.gender === 'female') {
-        query = query.eq('gender', 'male');
+      } else if (discoveryMode === 'dating') {
+        if (myProfile?.gender === 'male') {
+          query = query.or('gender.eq.female,gender.is.null');
+        } else if (myProfile?.gender === 'female') {
+          query = query.or('gender.eq.male,gender.is.null');
+        }
       }
 
       if (discoveryMode === 'study') {

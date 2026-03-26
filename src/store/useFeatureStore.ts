@@ -366,9 +366,6 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     try {
       const { error } = await supabase.from('post_likes').insert({ post_id: postId, user_id: likerId });
       if (error) throw error;
-      
-      // Fallback increment
-      await supabase.rpc('increment_likes', { post_id: postId });
 
       if (postOwnerId !== likerId) {
          await supabase.from('notifications').insert({
@@ -540,20 +537,23 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
           set((state) => ({ 
             confessions: state.confessions.some(c => c.id === payload.new.id) 
               ? state.confessions 
-              : [{ ...(payload.new as Confession), likes: 0, comment_count: 0 }, ...state.confessions] 
+              : [{ ...(payload.new as Confession), likes: payload.new.likes || 0, comment_count: payload.new.comment_count || 0 }, ...state.confessions] 
+          }));
+        } else if (payload.eventType === 'UPDATE') {
+          // Preserve updated likes/comment_count from DB
+          set((state) => ({
+            confessions: state.confessions.map(c => 
+              c.id === payload.new.id ? { ...c, likes: payload.new.likes || c.likes, comment_count: payload.new.comment_count || c.comment_count } : c
+            )
           }));
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'course_groups' }, (payload: any) => {
-        if (payload.eventType === 'INSERT') {
-          set((state) => ({ 
-            courseGroups: state.courseGroups.some(i => i.id === payload.new.id)
-              ? state.courseGroups
-              : [{ ...payload.new, users: { name: 'Unknown', avatar_url: '' } } as CourseGroup, ...state.courseGroups] 
-          }));
-        } else if (payload.eventType === 'DELETE') {
-          set((state) => ({ courseGroups: state.courseGroups.filter(i => i.id !== payload.old.id) }));
-        }
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'course_groups' }, (payload: any) => {
+        set((state) => ({ 
+          courseGroups: state.courseGroups.some(i => i.id === payload.new.id)
+            ? state.courseGroups
+            : [{ ...payload.new, users: { name: 'Unknown', avatar_url: '' } } as CourseGroup, ...state.courseGroups] 
+        }));
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
         set((state) => ({ 
