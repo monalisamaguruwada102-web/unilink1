@@ -60,9 +60,24 @@ export default function Admin() {
   };
 
   const deletePost = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this post?')) return;
+    if (!confirm('Are you sure you want to incinerate this post permanently?')) return;
     const { error } = await supabase.from('posts').delete().eq('id', id);
     if (!error) setPosts(p => p.filter(x => x.id !== id));
+  };
+
+  const deleteUser = async (id: string) => {
+    if (!confirm('CRITICAL WARNING: Are you sure you want to permanently execute this user from the platform? This cannot be undone.')) return;
+    try {
+      // NOTE: true account deletion requires Supabase Admin API,
+      // but deleting from the public 'users' table will trigger 
+      // cascading deletes across the app and break their session
+      const { error } = await supabase.from('users').delete().eq('id', id);
+      if (error) throw error;
+      setUsers(u => u.filter(x => x.id !== id));
+      alert('User successfully eradicated.');
+    } catch (err: any) {
+      alert('Failed to delete user: ' + err.message);
+    }
   };
 
   const card = isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100 shadow-xl shadow-gray-200/50';
@@ -148,7 +163,7 @@ export default function Admin() {
                   <p className="text-[10px] opacity-40 font-bold uppercase tracking-widest">{u.course || 'Poly Student'}</p>
                 </div>
               </div>
-              <button className="p-3 text-red-500 bg-red-500/10 rounded-xl active:scale-90 transition">
+              <button onClick={() => deleteUser(u.id)} className="p-3 text-red-500 bg-red-500/10 rounded-xl active:scale-90 transition hover:bg-red-500 hover:text-white">
                  <UserX size={18} />
               </button>
             </div>
