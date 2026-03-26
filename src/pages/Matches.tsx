@@ -44,8 +44,8 @@ export default function Matches() {
           last_message_content,
           last_message_at,
           last_message_type,
-          user1:users!matches_user1_id_fkey(id, name, avatar_url, course, last_seen, latitude, longitude, location_updated_at),
-          user2:users!matches_user2_id_fkey(id, name, avatar_url, course, last_seen, latitude, longitude, location_updated_at)
+          user1:users!user1_id(id, name, avatar_url, course, last_seen, latitude, longitude, location_updated_at),
+          user2:users!user2_id(id, name, avatar_url, course, last_seen, latitude, longitude, location_updated_at)
         `)
         .or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`)
         .order('last_message_at', { ascending: false, nullsFirst: false })

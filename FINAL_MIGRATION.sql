@@ -83,4 +83,44 @@ BEGIN
   END IF;
 END $$;
 
+-- 4. FIX MATCHES & MESSAGING (Missing Metadata & Realtime)
+-- This ensures the "Conversations" list works perfectly
+ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS last_message_content TEXT;
+ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS last_message_type TEXT DEFAULT 'text';
+
+-- Ensure messages have a type
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'text';
+
+-- Automate Chat List Updates (TRICK: This updates the matches table so we don't need heavy queries)
+CREATE OR REPLACE FUNCTION update_match_metadata()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE public.matches
+  SET 
+    last_message_content = NEW.content,
+    last_message_at = NEW.created_at,
+    last_message_type = COALESCE(NEW.type, 'text')
+  WHERE id = NEW.match_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS on_message_sent ON public.messages;
+CREATE TRIGGER on_message_sent
+  AFTER INSERT ON public.messages
+  FOR EACH ROW
+  EXECUTE FUNCTION update_match_metadata();
+
+-- Enable Realtime for standard messaging
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'matches') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE matches;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'messages') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+  END IF;
+END $$;
+
 -- MIGRATION COMPLETE

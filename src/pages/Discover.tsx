@@ -110,14 +110,26 @@ export default function Discover() {
       .maybeSingle();
 
     if (mutual) {
-      // Create a match record
-      const { data: newMatch } = await supabase
+      // 1. Check if match already exists to avoid unique constraint error
+      const { data: existingMatch } = await supabase
         .from('matches')
-        .insert({ user1_id: session.user.id, user2_id: profileId })
-        .select()
-        .single();
+        .select('id')
+        .or(`and(user1_id.eq.${session.user.id},user2_id.eq.${profileId}),and(user1_id.eq.${profileId},user2_id.eq.${session.user.id})`)
+        .maybeSingle();
+
+      if (existingMatch) {
+         setMatchId(existingMatch.id);
+      } else {
+        // 2. Create a new match record
+        const { data: newMatch } = await supabase
+          .from('matches')
+          .insert({ user1_id: session.user.id, user2_id: profileId })
+          .select()
+          .single();
+        if (newMatch) setMatchId(newMatch.id);
+      }
       
-      // Also notify both of the match
+      // 3. Notify both (Mutual likes)
       await supabase.from('notifications').insert([
         { user_id: profileId, sender_id: session.user.id, type: 'match', content: 'You have a new match! Start chatting.' },
         { user_id: session.user.id, sender_id: profileId, type: 'match', content: 'You have a new match! Start chatting.' }
@@ -125,7 +137,6 @@ export default function Discover() {
 
       const matchedProfile = profiles.find(p => p.id === profileId);
       setMatchedUser(matchedProfile);
-      if (newMatch) setMatchId(newMatch.id);
     }
 
     if (!searchQuery) {
