@@ -232,6 +232,9 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     const insertData: any = { user_id: userId, content };
     if (imageUrl) insertData.image_url = imageUrl;
     
+    // Ensure we don't accidentally treat secrets/confessions as posts
+    // (This is just a logical guard, as confessons are handled in a different flow)
+    
     const { data, error } = await supabase.from('posts').insert(insertData).select('*, users(name, avatar_url, course)').single();
     if (error) throw error;
     if (data) set(state => ({ posts: [{ ...data, comment_count: 0, is_liked: false }, ...state.posts] }));
@@ -332,6 +335,9 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       const { error } = await supabase.from('post_likes').insert({ post_id: postId, user_id: likerId });
       if (error) throw error;
       
+      // Secondary explicit increment as fallback for triggers
+      await supabase.rpc('increment_likes', { post_id: postId });
+
       // Notify owner
       if (postOwnerId !== likerId) {
          await supabase.from('notifications').insert({

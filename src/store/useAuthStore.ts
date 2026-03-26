@@ -21,7 +21,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, email, name, age, gender, bio, college, course, avatar_url, is_premium, is_verified, is_study_buddy_mode, department, campus_zone, last_seen, created_at, updated_at')
+        .select('*')
         .eq('id', userId)
         .maybeSingle();
       
