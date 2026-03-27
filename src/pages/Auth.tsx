@@ -8,7 +8,7 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [department, setDepartment] = useState(''); // Added more "data" for the email/profile
+  const [course, setCourse] = useState(''); // Unified to 'course' for UI consistency
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showConfirmSent, setShowConfirmSent] = useState(false);
@@ -42,7 +42,7 @@ export default function Auth() {
             // via {{ .Data.name }} or {{ .Data.campus }}
             data: { 
               name, 
-              department,
+              course,
               campus: 'Kwekwe Polytechnic',
               welcome_note: 'Welcome to the official student network of Poly Link!' 
             },
@@ -112,9 +112,9 @@ export default function Auth() {
                 </div>
                 <div className="relative group">
                   <input
-                    type="text" required value={department} onChange={(e) => setDepartment(e.target.value)}
+                    type="text" required value={course} onChange={(e) => setCourse(e.target.value)}
                     className="w-full px-6 py-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-sm font-bold focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all placeholder:text-gray-400"
-                    placeholder="Department (e.g. IT)"
+                    placeholder="Course (e.g. IT)"
                   />
                 </div>
               </motion.div>

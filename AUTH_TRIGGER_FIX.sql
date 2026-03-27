@@ -15,12 +15,13 @@ ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT fa
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.users (id, email, name, department, college, avatar_url, is_verified)
+  INSERT INTO public.users (id, email, name, department, course, college, avatar_url, is_verified)
   VALUES (
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'name', NEW.email),
-    NEW.raw_user_meta_data->>'department',
+    COALESCE(NEW.raw_user_meta_data->>'course', NEW.raw_user_meta_data->>'department'), -- Fallback if needed
+    NEW.raw_user_meta_data->>'course',
     COALESCE(NEW.raw_user_meta_data->>'campus', 'Kwekwe Polytechnic'),
     NEW.raw_user_meta_data->>'avatar_url',
     false -- Default to false until email is confirmed (if using custom logic)
