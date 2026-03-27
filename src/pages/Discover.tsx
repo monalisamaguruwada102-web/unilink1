@@ -9,7 +9,6 @@ import { useNavigate } from 'react-router-dom';
 export default function Discover() {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [matchedUser, setMatchedUser] = useState<any>(null);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,7 +57,6 @@ export default function Discover() {
         const { data: liveData, error: liveError } = await supabase.rpc('get_active_matches', { current_uid: session.user.id });
         if (liveError) throw liveError;
         setProfiles(liveData || []);
-        setCurrentIndex(0);
         setLoading(false);
         return; // Exit early for live mode
       }
@@ -90,15 +88,12 @@ export default function Discover() {
       }
 
       setProfiles(sorted);
-      setCurrentIndex(0);
     } catch (err) {
       console.error('Discover error:', err);
     } finally {
       setLoading(false);
     }
   };
-
-  const currentProfile = profiles[currentIndex];
 
   const handleLike = async (profileId: string) => {
     if (!session) return;
@@ -153,7 +148,7 @@ export default function Discover() {
     }
 
     if (!searchQuery) {
-      nextProfile();
+      setProfiles(prev => prev.filter(p => p.id !== profileId));
     }
   };
 
@@ -166,12 +161,7 @@ export default function Discover() {
       setMatchedUser(matchedProfile);
     } else {
       alert('❤️ Added to your secret crush list! If they add you too, it\'s a match!');
-      nextProfile();
     }
-  };
-
-  const handlePass = () => {
-    nextProfile();
   };
 
   const handleChatNow = async (profileId: string) => {
@@ -210,11 +200,7 @@ export default function Discover() {
     }
   };
 
-  const nextProfile = () => {
-    setCurrentIndex((prev) => (prev + 1) % profiles.length);
-  };
-
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
     if (!lat1 || !lon1 || !lat2 || !lon2) return null;
     const R = 6371; // km
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -224,7 +210,7 @@ export default function Discover() {
               Math.sin(dLon/2) * Math.sin(dLon/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return (R * c).toFixed(1);
-  };
+  }
 
   const bg = isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900';
   const card = isDarkMode ? 'bg-gray-900 border-gray-800 shadow-2xl' : 'bg-white border-gray-100 shadow-xl';
@@ -403,22 +389,17 @@ export default function Discover() {
             ))}
           </div>
         ) : (
-          /* Swiping Card View */
-          <AnimatePresence mode="wait">
-            {currentProfile && (
-              <motion.div
-                key={currentProfile.id}
-                drag="x"
-                dragConstraints={{ left: 0, right: 0 }}
-                onDragEnd={(_e, info) => {
-                  if (info.offset.x > 100) handleLike(currentProfile.id);
-                  if (info.offset.x < -100) handlePass();
-                }}
-                initial={{ scale: 0.95, opacity: 0, y: 20 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ x: -500, opacity: 0, rotate: -30 }}
-                className={`relative w-full h-[60vh] max-w-sm mx-auto rounded-[3.5rem] overflow-hidden shadow-2xl border-2 border-white/10 ${card}`}
-              >
+          /* Scrolling Feed View */
+          <div className="flex flex-col gap-6 h-full overflow-y-auto pb-32 hide-scrollbar snap-y snap-mandatory">
+            <AnimatePresence>
+              {profiles.map((currentProfile) => (
+                <motion.div
+                  key={currentProfile.id}
+                  initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.8, x: -100 }}
+                  className={`relative w-full h-[60vh] max-w-sm mx-auto rounded-[3.5rem] overflow-hidden shadow-2xl border-2 border-white/10 shrink-0 snap-center ${card}`}
+                >
                 {currentProfile.avatar_url ? (
                   <img src={currentProfile.avatar_url} alt={currentProfile.name} className="w-full h-full object-cover pointer-events-none" />
                 ) : (
@@ -426,24 +407,6 @@ export default function Discover() {
                     <span className="text-8xl font-black text-white/30">{currentProfile.name[0]}</span>
                   </div>
                 )}
-
-                {/* Swipe Indicators */}
-                <div className="absolute top-10 left-8 right-8 flex justify-between pointer-events-none z-20">
-                    <motion.div 
-                      style={{ opacity: 0 }}
-                      whileDrag={{ opacity: 1, scale: 1.2 }}
-                      className="px-4 py-2 border-4 border-red-500 text-red-500 font-black rounded-xl uppercase tracking-widest text-2xl -rotate-12"
-                    >
-                      NOPE
-                    </motion.div>
-                    <motion.div 
-                      style={{ opacity: 0 }}
-                      whileDrag={{ opacity: 1, scale: 1.2 }}
-                      className="px-4 py-2 border-4 border-green-500 text-green-500 font-black rounded-xl uppercase tracking-widest text-2xl rotate-12"
-                    >
-                      LIKE
-                    </motion.div>
-                </div>
 
                 {/* Overlay Details */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-90 pointer-events-none" />
@@ -488,7 +451,7 @@ export default function Discover() {
                   {/* Action Buttons */}
                   <div className="flex items-center gap-3 relative z-30">
                     <button 
-                      onClick={(e) => { e.stopPropagation(); handlePass(); }}
+                      onClick={(e) => { e.stopPropagation(); setProfiles(prev => prev.filter(p => p.id !== currentProfile.id)); }}
                       className="flex-1 h-14 bg-white/10 backdrop-blur-xl border border-white/20 rounded-[2rem] flex items-center justify-center text-white active:scale-90 transition shadow-xl"
                     >
                       <X size={24} />
@@ -516,9 +479,10 @@ export default function Discover() {
                   </div>
                 </div>
 
-              </motion.div>
-            )}
-          </AnimatePresence>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
         )}
       </div>
 
