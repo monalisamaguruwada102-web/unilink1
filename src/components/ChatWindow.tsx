@@ -654,26 +654,32 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-             {/* Audio Mode */}
              <button
-               type="button"
-               onMouseDown={startRecording} onMouseUp={stopRecording} onMouseLeave={stopRecording}
-               onTouchStart={startRecording} onTouchEnd={stopRecording}
-               className={`p-3.5 rounded-2xl transition-all ${isRecording ? 'bg-red-500 text-white shadow-lg' : isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}
+               type={input.trim() ? "submit" : "button"}
+               onMouseDown={!input.trim() ? startRecording : undefined}
+               onMouseUp={!input.trim() ? stopRecording : undefined}
+               onMouseLeave={!input.trim() ? stopRecording : undefined}
+               onTouchStart={!input.trim() ? startRecording : undefined}
+               onTouchEnd={!input.trim() ? stopRecording : undefined}
+               onClick={isRecording ? stopRecording : undefined}
+               className={`p-3.5 rounded-2xl transition-all flex items-center justify-center
+                 ${input.trim() 
+                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/20 active:scale-95' 
+                    : isRecording 
+                      ? 'bg-red-500 text-white shadow-lg animate-pulse' 
+                      : (isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500')
+                 }`}
              >
-               <Mic size={20} />
+               {input.trim() ? <Send size={20} /> : <Mic size={20} />}
              </button>
 
-             {/* Send Action */}
-             {(input.trim() || isRecording) && (
-                <button
-                  type={isRecording ? "button" : "submit"}
-                  onClick={isRecording ? stopRecording : undefined}
-                  className="p-3.5 bg-primary-600 text-white rounded-2xl shadow-lg shadow-primary-500/20 active:scale-95 transition-all"
-                >
-                  <Send size={20} />
-                </button>
-             )}
+
+
+
+
+
+
+
           </div>
         </form>
       </div>
