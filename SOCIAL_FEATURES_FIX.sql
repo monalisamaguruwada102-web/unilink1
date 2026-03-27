@@ -82,3 +82,4 @@ CREATE POLICY "Users can create polls" ON campus_polls FOR INSERT WITH CHECK (au
 CREATE POLICY "Anyone can update polls" ON campus_polls FOR UPDATE USING (true);
 
 -- MIGRATION COMPLETE
+,

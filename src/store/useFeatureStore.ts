@@ -124,6 +124,7 @@ interface FeatureState {
   createPoll: (question: string, options: any[], creatorId: string) => Promise<void>;
   deletePost: (postId: string) => Promise<void>;
   createPost: (userId: string, content: string, imageUrl?: string) => Promise<void>;
+  updatePresence: (userId: string) => Promise<void>;
 }
 
 export const useFeatureStore = create<FeatureState>((set, get) => ({
@@ -592,13 +593,20 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
             )
           }));
         }
-      })
-      .subscribe();
+      });
       
     channel.subscribe();
   },
 
   updateUserProfile: async (userId, updates) => {
      await supabase.from('users').update(updates).eq('id', userId);
+  },
+
+  updatePresence: async (userId) => {
+    try {
+      await supabase.from('users').update({ last_seen: new Date().toISOString() }).eq('id', userId);
+    } catch (err) {
+      console.error('Presence sync failed:', err);
+    }
   }
 }));

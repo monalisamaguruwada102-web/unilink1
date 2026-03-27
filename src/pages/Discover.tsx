@@ -14,7 +14,7 @@ export default function Discover() {
   const [matchId, setMatchId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProfile, setSelectedProfile] = useState<any>(null);
-  const [discoveryMode, setDiscoveryMode] = useState<'dating' | 'study'>('dating');
+  const [discoveryMode, setDiscoveryMode] = useState<'dating' | 'study' | 'live'>('dating');
   const [selectedZone, setSelectedZone] = useState('');
   const [selectedDept, setSelectedDept] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -36,7 +36,7 @@ export default function Discover() {
       // Base query
       let query = supabase
         .from('users')
-        .select('id, name, age, course, bio, avatar_url, college, latitude, longitude, is_study_buddy_mode, department, campus_zone, is_verified, gender')
+        .select('id, name, age, course, bio, avatar_url, college, latitude, longitude, is_study_buddy_mode, department, campus_zone, is_verified, gender, last_seen')
         .neq('id', session.user.id);
 
       // Gender Filtering (manual override)
@@ -52,6 +52,15 @@ export default function Discover() {
       }
       if (selectedDept) {
         query = query.eq('department', selectedDept);
+      }
+
+      if (discoveryMode === 'live') {
+        const { data: liveData, error: liveError } = await supabase.rpc('get_active_matches', { current_uid: session.user.id });
+        if (liveError) throw liveError;
+        setProfiles(liveData || []);
+        setCurrentIndex(0);
+        setLoading(false);
+        return; // Exit early for live mode
       }
 
       if (searchQuery) {
@@ -209,6 +218,13 @@ export default function Discover() {
                 className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${discoveryMode === 'dating' ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/30' : 'opacity-40'}`}
               >
                 Dating
+              </button>
+              <button 
+                type="button"
+                onClick={() => setDiscoveryMode('live')}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${discoveryMode === 'live' ? 'bg-green-500 text-white shadow-lg shadow-green-500/30' : 'opacity-40'}`}
+              >
+                Live Sync
               </button>
               <button 
                 type="button"
@@ -379,9 +395,14 @@ export default function Discover() {
                   <div className="flex items-center justify-between mb-2">
                      <div className="flex items-center gap-3">
                        <h2 className="text-3xl font-black tracking-tighter">{currentProfile.name}, {currentProfile.age || '??'}</h2>
-                       {currentProfile.is_verified && <Sparkles size={20} className="text-blue-400" />}
-                       <div className="w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />
-                     </div>
+                        {currentProfile.is_verified && <Sparkles size={20} className="text-blue-400" />}
+                        { (new Date().getTime() - new Date(currentProfile.last_seen).getTime() < 300000) && (
+                          <div className="flex items-center gap-1.5 px-2 py-1 bg-green-500/20 rounded-full border border-green-500/30">
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                            <span className="text-[8px] font-black uppercase text-green-500">Live</span>
+                          </div>
+                        )}
+                      </div>
                      <button 
                        onClick={(e) => { e.stopPropagation(); setSelectedProfile(currentProfile); }}
                        className="p-3 bg-white/20 backdrop-blur-md rounded-2xl border border-white/20 relative z-30"
