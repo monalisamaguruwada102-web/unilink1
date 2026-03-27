@@ -417,7 +417,7 @@ export default function Discover() {
                 initial={{ scale: 0.95, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ x: -500, opacity: 0, rotate: -30 }}
-                className={`relative w-full h-full rounded-[3.5rem] overflow-hidden shadow-2xl border-2 border-white/10 ${card}`}
+                className={`relative w-full h-[60vh] max-w-sm mx-auto rounded-[3.5rem] overflow-hidden shadow-2xl border-2 border-white/10 ${card}`}
               >
                 {currentProfile.avatar_url ? (
                   <img src={currentProfile.avatar_url} alt={currentProfile.name} className="w-full h-full object-cover pointer-events-none" />
