@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, X, MapPin, Search, MessageCircle, Info, User, GraduationCap, XCircle, Star, Sparkles, Filter, TrendingUp, Users } from 'lucide-react';
+import { Heart, X, MapPin, Search, MessageCircle, Info, User, GraduationCap, XCircle, Star, Sparkles, Filter, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Discover() {
