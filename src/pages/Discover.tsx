@@ -81,6 +81,10 @@ export default function Discover() {
         sorted = [...sorted].sort((a: any, b: any) => {
           const distA = (a.latitude && a.longitude) ? parseFloat(calculateDistance(myLat, myLng, a.latitude, a.longitude) || '9999') : 9999;
           const distB = (b.latitude && b.longitude) ? parseFloat(calculateDistance(myLat, myLng, b.latitude, b.longitude) || '9999') : 9999;
+          
+          if (isNaN(distA)) return 1;
+          if (isNaN(distB)) return -1;
+          
           return distA - distB;
         });
       }
