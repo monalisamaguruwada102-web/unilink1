@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
-import { Send, ArrowLeft, Mic, Smile, MoreVertical, Play, X, User, MapPin, Grid, Pause, Check } from 'lucide-react';
+import { Send, ArrowLeft, Mic, Smile, MoreVertical, Play, User, MapPin, Grid, Pause, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
