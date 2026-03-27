@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
-import { Send, ArrowLeft, Mic, Smile, MoreVertical, Play, Dice5, X, User, MapPin, Grid, Pause } from 'lucide-react';
+import { Send, ArrowLeft, Mic, Smile, MoreVertical, Play, Dice5, X, User, MapPin, Grid, Pause, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
@@ -12,6 +12,7 @@ interface Message {
   content: string;
   created_at: string;
   type?: 'text' | 'sticker' | 'voice' | 'vibe_check';
+  read_at?: string | null;
 }
 
 interface ChatWindowProps {
@@ -146,7 +147,15 @@ const MessageBubble = memo(({ msg, isMine, isDarkMode }: { msg: Message; isMine:
         ) : (
           <p className="font-medium text-[13px] leading-relaxed">{msg.content}</p>
         )}
-        <p className="text-[8px] mt-1.5 font-bold uppercase tracking-widest text-right opacity-40">{ts}</p>
+        <div className="flex items-center justify-end gap-1 mt-1.5 opacity-40">
+           <p className="text-[8px] font-bold uppercase tracking-widest">{ts}</p>
+           {isMine && (
+             <div className="flex -space-x-1 ml-0.5">
+               <Check size={8} className={msg.read_at ? 'text-blue-400' : 'text-white'} strokeWidth={4} />
+               <Check size={8} className={msg.read_at ? 'text-blue-400' : 'text-white'} strokeWidth={4} />
+             </div>
+           )}
+        </div>
       </motion.div>
     </div>
   );
@@ -301,6 +310,10 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     }, 45000);
 
     return () => {
+      // Mark as read immediately on open
+      if (session?.user.id) {
+         supabase.rpc('mark_match_as_read', { target_match_id: matchId, my_id: session.user.id });
+      }
       supabase.removeChannel(msgChannel);
       clearInterval((presenceChannel as any)._hb);
       supabase.removeChannel(presenceChannel);

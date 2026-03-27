@@ -69,7 +69,7 @@ export default function Discover() {
 
       const { data, error } = await query
         .order('created_at', { ascending: false })
-        .limit(searchQuery ? 100 : 20);
+        .limit(searchQuery ? 100 : 500);
 
       if (error) throw error;
       
@@ -168,6 +168,42 @@ export default function Discover() {
 
   const handlePass = () => {
     nextProfile();
+  };
+
+  const handleChatNow = async (profileId: string) => {
+    if (!session) return;
+    try {
+      // 1. Check if match already exists
+      const { data: existingMatch } = await supabase
+        .from('matches')
+        .select('id')
+        .or(`and(user1_id.eq.${session.user.id},user2_id.eq.${profileId}),and(user1_id.eq.${profileId},user2_id.eq.${session.user.id})`)
+        .maybeSingle();
+
+      let targetMatchId = existingMatch?.id;
+
+      if (!targetMatchId) {
+        // 2. Force match to open immediate chat pathway
+        const { data: newMatch, error } = await supabase
+          .from('matches')
+          .insert({ user1_id: session.user.id, user2_id: profileId })
+          .select()
+          .single();
+        if (error) throw error;
+        targetMatchId = newMatch.id;
+
+        // 3. Notify them
+        await supabase.from('notifications').insert([
+          { user_id: profileId, sender_id: session.user.id, type: 'match', content: 'Someone started an instant chat with you!' }
+        ]);
+      }
+
+      if (targetMatchId) {
+        navigate(`/chat/${targetMatchId}`);
+      }
+    } catch (err: any) {
+      alert("Failed to start chat: " + err.message);
+    }
   };
 
   const nextProfile = () => {
@@ -446,28 +482,36 @@ export default function Discover() {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex items-center gap-4 relative z-30">
+                  <div className="flex items-center gap-3 relative z-30">
                     <button 
                       onClick={(e) => { e.stopPropagation(); handlePass(); }}
-                      className="flex-1 h-16 bg-white/10 backdrop-blur-xl border border-white/20 rounded-[2rem] flex items-center justify-center text-white active:scale-90 transition shadow-xl"
+                      className="flex-1 h-14 bg-white/10 backdrop-blur-xl border border-white/20 rounded-[2rem] flex items-center justify-center text-white active:scale-90 transition shadow-xl"
                     >
-                      <X size={28} />
+                      <X size={24} />
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleChatNow(currentProfile.id); }}
+                      className="flex-[1.5] flex items-center justify-center gap-2 h-14 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-[2rem] text-white active:scale-95 transition shadow-2xl relative overflow-hidden group"
+                    >
+                      <MessageCircle size={20} fill="currentColor" />
+                      <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">Chat</span>
                     </button>
                     <button 
                       onClick={(e) => { e.stopPropagation(); handleLike(currentProfile.id); }}
-                      className="flex-[2] h-16 bg-primary-500 rounded-[2rem] flex items-center justify-center text-white active:scale-95 transition shadow-2xl shadow-primary-500/40 relative overflow-hidden group"
+                      className="flex-[1.5] h-14 bg-primary-500 rounded-[2rem] flex items-center justify-center text-white active:scale-95 transition shadow-2xl shadow-primary-500/40 relative overflow-hidden group"
                     >
-                      <Heart size={28} fill="currentColor" />
+                      <Heart size={24} fill="currentColor" />
                     </button>
                     <button 
                       onClick={(e) => { e.stopPropagation(); handleSecretCrush(currentProfile.id); }}
-                      className={`h-16 w-16 rounded-[2rem] flex items-center justify-center transition shadow-xl ${isDarkMode ? 'bg-amber-500/20 text-amber-500 border border-amber-500/20' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}
+                      className={`h-14 w-14 rounded-[2rem] flex items-center justify-center transition shadow-xl shrink-0 ${isDarkMode ? 'bg-amber-500/20 text-amber-500 border border-amber-500/20' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}
                       title="Secret crush"
                     >
-                      <Star size={24} fill={crushList.includes(currentProfile.id) ? "currentColor" : "none"} strokeWidth={2.5} />
+                      <Star size={20} fill={crushList.includes(currentProfile.id) ? "currentColor" : "none"} strokeWidth={2.5} />
                     </button>
                   </div>
                 </div>
+
               </motion.div>
             )}
           </AnimatePresence>
