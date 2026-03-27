@@ -333,11 +333,21 @@ export default function Discover() {
       </div>
 
       {/* Main Content Area */}
-      <div className={`flex-1 relative mb-24 px-5 ${searchQuery ? 'h-full' : ''}`}>
-        {loading ? (
-          <div className="flex flex-col items-center justify-center h-full text-primary-500">
+      <div className="flex-1 relative mb-24 min-h-[70vh]">
+        {/* Loading Indicator (Small & Fixed) */}
+        {loading && (
+          <div className="absolute -top-4 left-0 right-0 z-50 flex justify-center">
+            <div className="bg-primary-500 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.2em] shadow-2xl flex items-center gap-2 animate-bounce">
+              <div className="w-1.5 h-1.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Scanning Campus...
+            </div>
+          </div>
+        )}
+
+        {loading && profiles.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-[60vh] text-primary-500">
             <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mb-4" />
-            <p className="text-[10px] font-black uppercase tracking-widest italic animate-pulse">Scanning Poly Students...</p>
+            <p className="text-[10px] font-black uppercase tracking-widest italic animate-pulse">Syncing Students...</p>
           </div>
         ) : profiles.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-8">
@@ -390,15 +400,14 @@ export default function Discover() {
           </div>
         ) : (
           /* Scrolling Feed View */
-          <div className="flex flex-col gap-6 h-full overflow-y-auto pb-32 hide-scrollbar snap-y snap-mandatory">
+          <div className="flex flex-col gap-8 h-[calc(100vh-280px)] overflow-y-auto px-5 pb-32 hide-scrollbar snap-y snap-mandatory bg-transparent">
             <AnimatePresence>
               {profiles.map((currentProfile) => (
                 <motion.div
                   key={currentProfile.id}
-                  initial={{ scale: 0.95, opacity: 0, y: 20 }}
-                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.8, x: -100 }}
-                  className={`relative w-full h-[60vh] max-w-sm mx-auto rounded-[3.5rem] overflow-hidden shadow-2xl border-2 border-white/10 shrink-0 snap-center ${card}`}
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`relative w-full min-h-[65vh] h-[65vh] max-w-sm mx-auto rounded-[3.5rem] overflow-hidden shadow-2xl border-2 border-white/10 shrink-0 snap-start active:snap-none ${card}`}
                 >
                 {currentProfile.avatar_url ? (
                   <img src={currentProfile.avatar_url} alt={currentProfile.name} className="w-full h-full object-cover pointer-events-none" />
