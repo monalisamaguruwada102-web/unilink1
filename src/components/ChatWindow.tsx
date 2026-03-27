@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
-import { Send, ArrowLeft, Mic, Smile, MoreVertical, Play, Dice5, X, User, MapPin, Grid, Pause, Check } from 'lucide-react';
+import { Send, ArrowLeft, Mic, Smile, MoreVertical, Play, X, User, MapPin, Grid, Pause, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
@@ -11,7 +11,7 @@ interface Message {
   sender_id: string;
   content: string;
   created_at: string;
-  type?: 'text' | 'sticker' | 'voice' | 'vibe_check';
+  type?: 'text' | 'sticker' | 'voice';
   read_at?: string | null;
 }
 
@@ -36,18 +36,7 @@ const SLANG_STICKERS = [
   'Bho zvese', 'Yabhowa', 'Kusvika rini', 'Zvese-zvese', 'Tichasangana', 'Muchiri bho?', 'Zvatovhara', 'Ndakakuda',
 ];
 
-const VIBE_CHECKS = [
-  '🌙 Late night study OR ☀️ Early morning grind?',
-  '📚 Library silence OR 🎧 Music while studying?',
-  '🍕 Pizza at the canteen OR 🍱 Packed lunch from home?',
-  '📱 Text first OR 😅 Wait forever?',
-  '🏃 Walk to lectures OR 🚶 Always late?',
-  '☕ Coffee addict OR 💧 Water only?',
-  '🎓 Study hard now OR 🎉 Figure it out later?',
-  '🤫 Sit at the front OR 👀 Hide at the back?',
-  '😴 Nap in free periods OR 📖 Catch up on notes?',
-  '❤️ Crush on someone in class OR 🙅 Never mix love and school?',
-];
+
 
 // ─── Typing Dot (memoised, never re-renders) ──────────────────────────────────
 const TypingDot = memo(({ delay }: { delay: number }) => (
@@ -109,24 +98,9 @@ const VoicePlayer = memo(({ url, isMine }: { url: string; isMine: boolean }) => 
 
 // ─── Single message bubble (memoised — only re-renders when content changes) ──
 const MessageBubble = memo(({ msg, isMine, isDarkMode }: { msg: Message; isMine: boolean; isDarkMode: boolean }) => {
-  const isVibeCheck = msg.type === 'vibe_check';
   const ts = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  if (isVibeCheck) {
-    return (
-      <div className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="max-w-[85%] bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-[2rem] p-5 shadow-2xl shadow-indigo-500/30"
-        >
-          <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-2">🎲 Vibe Check</p>
-          <p className="font-black text-sm leading-snug">{msg.content.replace('🎲 VIBE CHECK: ', '')}</p>
-          <p className="text-[8px] mt-2 opacity-40 tracking-widest uppercase text-right">{ts}</p>
-        </motion.div>
-      </div>
-    );
-  }
+
 
   return (
     <div className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
@@ -175,7 +149,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   const [showMenu, setShowMenu] = useState(false);
   const [showProfileSheet, setShowProfileSheet] = useState(false);
   const [otherUserPosts, setOtherUserPosts] = useState<any[]>([]);
-  const [vibeCheckQuestion, setVibeCheckQuestion] = useState<string | null>(null);
+
   const [uploading, setUploading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -392,12 +366,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     return new Date(lastSeen).toLocaleDateString();
   };
 
-  // ─── Vibe Check ───────────────────────────────────────────────────────────
-  const sendVibeCheck = () => {
-    const q = VIBE_CHECKS[Math.floor(Math.random() * VIBE_CHECKS.length)];
-    setVibeCheckQuestion(q);
-    handleSend(`🎲 VIBE CHECK: ${q}`, 'vibe_check');
-  };
+
 
   // ─── Fetch other user's posts (for profile sheet) ─────────────────────────
   const fetchOtherUserPosts = useCallback(async () => {
@@ -406,7 +375,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   }, [otherUser.id]);
 
   // ─── Send Message ─────────────────────────────────────────────────────────
-  const handleSend = useCallback(async (content: string, type: 'text' | 'sticker' | 'voice' | 'vibe_check' = 'text') => {
+  const handleSend = useCallback(async (content: string, type: 'text' | 'sticker' | 'voice' = 'text') => {
     if (!content.trim() || !session) return;
     setInput('');
     setShowStickers(false);
@@ -419,7 +388,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
       user_id: otherUser.id,
       sender_id: session.user.id,
       type: 'message',
-      content: type === 'voice' ? 'Sent a voice note 🎙️' : type === 'vibe_check' ? 'Sent a Vibe Check 🎲' : content.length > 30 ? `${content.slice(0, 30)}...` : content,
+      content: type === 'voice' ? 'Sent a voice note 🎙️' : content.length > 30 ? `${content.slice(0, 30)}...` : content,
       post_id: matchId,
     });
   }, [session, matchId, otherUser.id, broadcastTyping]);
@@ -611,31 +580,15 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
           )}
         </AnimatePresence>
 
-        {/* Vibe check preview */}
-        <AnimatePresence>
-          {vibeCheckQuestion && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-              className="mx-4 mt-3 mb-1 px-4 py-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-between"
-            >
-              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest truncate flex-1 mr-2">🎲 {vibeCheckQuestion}</p>
-              <button onClick={() => setVibeCheckQuestion(null)} className="text-indigo-400 shrink-0"><X size={14} /></button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+
 
         <form onSubmit={e => { e.preventDefault(); handleSend(input); }} className="flex items-center gap-2 p-3">
           {/* Sticker */}
-          <button type="button" onClick={() => { setShowStickers(s => !s); setVibeCheckQuestion(null); }}
+          <button type="button" onClick={() => setShowStickers(s => !s)}
             className={`p-3.5 rounded-2xl transition shrink-0 ${showStickers ? 'bg-primary-100 text-primary-600' : isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
             <Smile size={20} />
           </button>
 
-          {/* Vibe Check dice */}
-          <button type="button" onClick={sendVibeCheck} title="Vibe Check"
-            className={`p-3.5 rounded-2xl transition shrink-0 ${isDarkMode ? 'bg-gray-800 text-indigo-400 hover:bg-indigo-500 hover:text-white' : 'bg-gray-100 text-indigo-500 hover:bg-indigo-500 hover:text-white'}`}>
-            <Dice5 size={20} />
-          </button>
 
           {/* Input */}
           <div className={`flex-1 rounded-2xl flex items-center px-4 transition-all duration-300 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'} ${isRecording ? 'ring-2 ring-red-500/50' : ''}`}>
