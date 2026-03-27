@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, X, MapPin, Search, MessageCircle, Info, User, GraduationCap, XCircle, Star, Sparkles, Filter } from 'lucide-react';
+import { Heart, X, MapPin, Search, MessageCircle, Info, User, GraduationCap, XCircle, Star, Sparkles, Filter, TrendingUp, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Discover() {
@@ -188,6 +188,23 @@ export default function Discover() {
 
   const bg = isDarkMode ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900';
   const card = isDarkMode ? 'bg-gray-900 border-gray-800 shadow-2xl' : 'bg-white border-gray-100 shadow-xl';
+
+  const UserBadges = ({ profile }: { profile: any }) => {
+    const badges = [];
+    if (profile?.is_verified) badges.push({ icon: <Sparkles size={8} />, label: 'Verified', color: 'text-blue-400 bg-blue-500/10' });
+    if (new Date().getTime() - new Date(profile.last_seen || '').getTime() < 300000) badges.push({ icon: <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />, label: 'Live', color: 'text-green-400 bg-green-500/10' });
+    if (profile?.course === myProfile?.course) badges.push({ icon: <Users size={8} />, label: 'Course Mate', color: 'text-indigo-400 bg-indigo-500/10' });
+    
+    return (
+      <div className="flex flex-wrap gap-1 mt-2">
+        {badges.map((b, i) => (
+          <div key={i} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg border border-current font-black text-[6px] uppercase tracking-widest ${b.color}`}>
+            {b.icon} {b.label}
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className={`min-h-screen pb-36 transition-colors duration-500 ${bg} overflow-hidden`}>
@@ -393,16 +410,13 @@ export default function Discover() {
                 
                 <div className="absolute bottom-10 left-8 right-8 text-white">
                   <div className="flex items-center justify-between mb-2">
-                     <div className="flex items-center gap-3">
-                       <h2 className="text-3xl font-black tracking-tighter">{currentProfile.name}, {currentProfile.age || '??'}</h2>
-                        {currentProfile.is_verified && <Sparkles size={20} className="text-blue-400" />}
-                        { (new Date().getTime() - new Date(currentProfile.last_seen).getTime() < 300000) && (
-                          <div className="flex items-center gap-1.5 px-2 py-1 bg-green-500/20 rounded-full border border-green-500/30">
-                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                            <span className="text-[8px] font-black uppercase text-green-500">Live</span>
-                          </div>
-                        )}
-                      </div>
+                     <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                           <h2 className="text-3xl font-black tracking-tighter">{currentProfile.name}, {currentProfile.age || '??'}</h2>
+                           {currentProfile.is_verified && <Sparkles size={20} className="text-blue-400" />}
+                        </div>
+                        <UserBadges profile={currentProfile} />
+                     </div>
                      <button 
                        onClick={(e) => { e.stopPropagation(); setSelectedProfile(currentProfile); }}
                        className="p-3 bg-white/20 backdrop-blur-md rounded-2xl border border-white/20 relative z-30"

@@ -179,6 +179,23 @@ export default function Feed() {
     setShowPollModal(false);
   };
   
+  const UserBadges = ({ user, post }: { user: any, post?: any }) => {
+    const badges = [];
+    if (user?.is_verified) badges.push({ icon: <Sparkles size={10} />, label: 'Verified', color: 'text-blue-500 bg-blue-500/10' });
+    if (post?.likes > 5) badges.push({ icon: <TrendingUp size={10} />, label: 'Trending', color: 'text-orange-500 bg-orange-500/10' });
+    if (user?.course === profile?.course) badges.push({ icon: <Users size={10} />, label: 'Course Mate', color: 'text-indigo-500 bg-indigo-500/10' });
+    
+    return (
+      <div className="flex flex-wrap gap-1 mt-1">
+        {badges.map((b, i) => (
+          <div key={i} className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border border-current font-black text-[7px] uppercase tracking-widest ${b.color}`}>
+            {b.icon} {b.label}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const handleDeletePost = (postId: string) => {
     if (!confirm('Are you sure you want to delete this post?')) return;
     deletePost(postId).catch((err: any) => alert(err.message));
@@ -488,7 +505,8 @@ export default function Feed() {
                            <p className="font-black text-sm tracking-tight">{post.users?.name}</p>
                            {post.users?.is_verified && <Sparkles size={12} className="text-blue-500" strokeWidth={3} />}
                         </div>
-                        <div className="flex items-center gap-2 opacity-40">
+                        <UserBadges user={post.users} post={post} />
+                        <div className="flex items-center gap-2 opacity-40 mt-1">
                           <p className="text-[9px] font-black uppercase tracking-widest">{post.users?.course || 'Student'}</p>
                           <span className="w-1 h-1 bg-current rounded-full" />
                           <p className="text-[9px] font-black uppercase tracking-widest">{timeAgo(post.created_at)}</p>
