@@ -173,6 +173,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const incomingOfferRef = useRef<any>(null);
   const iceCandidateBuffer = useRef<RTCIceCandidate[]>([]);
+  const incomingIceBufferRef = useRef<RTCIceCandidateInit[]>([]);
   const remoteDescSet = useRef(false);
 
   const ICE_CONFIG = {
@@ -196,6 +197,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     if (peerConnection.current) { peerConnection.current.close(); peerConnection.current = null; }
     if (localStream.current) { localStream.current.getTracks().forEach(t => t.stop()); localStream.current = null; }
     iceCandidateBuffer.current = [];
+    incomingIceBufferRef.current = [];
     remoteDescSet.current = false;
     setCallStatus('idle');
     if (notify) {
@@ -215,6 +217,14 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
       presenceChannelRef.current?.send({ type: 'broadcast', event: 'ice_candidate', payload: { candidate, to: otherUser.id } });
     });
     iceCandidateBuffer.current = [];
+  };
+
+  const processIncomingIceCandidates = async () => {
+    if (!peerConnection.current) return;
+    for (const candidate of incomingIceBufferRef.current) {
+      try { await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e){}
+    }
+    incomingIceBufferRef.current = [];
   };
 
   const initCall = async (isCaller: boolean) => {
@@ -272,6 +282,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
       await peerConnection.current.setRemoteDescription(new RTCSessionDescription(incomingOfferRef.current));
       remoteDescSet.current = true;
       flushIceCandidates();
+      processIncomingIceCandidates();
       const answer = await peerConnection.current.createAnswer();
       await peerConnection.current.setLocalDescription(answer);
       presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_answer', payload: { answer, from: session?.user.id, to: otherUser.id } });
@@ -393,12 +404,19 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
       .on('broadcast', { event: 'call_answer' }, async (payload: any) => {
         if (payload.payload.to === session?.user.id && peerConnection.current) {
           await peerConnection.current.setRemoteDescription(new RTCSessionDescription(payload.payload.answer));
+          remoteDescSet.current = true;
+          flushIceCandidates();
+          processIncomingIceCandidates();
           setCallStatus('connected');
         }
       })
       .on('broadcast', { event: 'ice_candidate' }, async (payload: any) => {
         if (payload.payload.to === session?.user.id && peerConnection.current) {
-          try { await peerConnection.current.addIceCandidate(new RTCIceCandidate(payload.payload.candidate)); } catch(e){}
+          if (remoteDescSet.current) {
+            try { await peerConnection.current.addIceCandidate(new RTCIceCandidate(payload.payload.candidate)); } catch(e){}
+          } else {
+            incomingIceBufferRef.current.push(payload.payload.candidate);
+          }
         }
       })
       .on('broadcast', { event: 'call_end' }, async (payload: any) => {
