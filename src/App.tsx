@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { supabase } from './lib/supabase';
 import { useAuthStore } from './store/useAuthStore';
 import { useFeatureStore } from './store/useFeatureStore';
+import { registerServiceWorker, subscribeToPush, requestNotificationPermission } from './lib/pushManager';
 
 // Components
 import BottomNav from './components/BottomNav';
@@ -29,7 +30,12 @@ export default function App() {
       setSession(session);
       if (session?.user?.id) {
          fetchProfile(session.user.id);
-         fetchFeatures(); // Populate 20 features data
+         fetchFeatures();
+         // Register push notifications
+         registerServiceWorker().then(async () => {
+           const granted = await requestNotificationPermission();
+           if (granted) subscribeToPush(session.user.id);
+         });
       }
     });
 

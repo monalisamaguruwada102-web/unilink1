@@ -14,6 +14,7 @@ export default function Matches() {
   const [searchQuery, setSearchQuery] = useState('');
   const [locationMatch, setLocationMatch] = useState<any>(null);
   const [mapLayer, setMapLayer] = useState<'mapnik' | 'hot'>('mapnik');
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const { session, profile } = useAuthStore();
   const { isDarkMode } = useFeatureStore();
   const navigate = useNavigate();
@@ -87,6 +88,16 @@ export default function Matches() {
       console.error('Fetch matches error:', err);
     } finally {
       setLoading(false);
+    }
+
+    // Fetch unread counts
+    if (session) {
+      const { data: unread } = await supabase.rpc('get_unread_counts', { my_id: session.user.id });
+      if (unread) {
+        const countMap: Record<string, number> = {};
+        unread.forEach((row: any) => { countMap[row.match_id] = Number(row.unread_count); });
+        setUnreadCounts(countMap);
+      }
     }
   };
 
@@ -241,7 +252,12 @@ export default function Matches() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: idx * 0.05 }}
-                    onClick={() => navigate(`/chat/${match.id}`)}
+                    onClick={() => {
+                      navigate(`/chat/${match.id}`);
+                      // Mark as read immediately on open
+                      supabase.rpc('mark_match_as_read', { target_match_id: match.id, my_id: session!.user.id });
+                      setUnreadCounts(prev => ({ ...prev, [match.id]: 0 }));
+                    }}
                     className={`flex items-center gap-4 p-4 rounded-[2.5rem] border active:scale-95 transition-all group ${card}`}
                   >
                     <div className="relative">
@@ -259,6 +275,12 @@ export default function Matches() {
                          ? 'bg-green-500' 
                          : 'bg-gray-400'
                        }`} />
+                       {/* ── Unread badge ── */}
+                       {(unreadCounts[match.id] || 0) > 0 && (
+                         <span className="absolute -top-1.5 -left-1.5 min-w-[20px] h-5 bg-red-500 text-white text-[9px] flex items-center justify-center rounded-full font-black border-2 border-white dark:border-gray-900 px-1">
+                           {unreadCounts[match.id] > 99 ? '99+' : unreadCounts[match.id]}
+                         </span>
+                       )}
                     </div>
                     
                     <div className="flex-1 overflow-hidden">

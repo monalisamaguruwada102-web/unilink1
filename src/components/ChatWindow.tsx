@@ -171,21 +171,49 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   const localStream = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const incomingOfferRef = useRef<any>(null);
+  const iceCandidateBuffer = useRef<RTCIceCandidate[]>([]);
+  const remoteDescSet = useRef(false);
+
+  const ICE_CONFIG = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      {
+        urls: [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp'
+        ],
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      }
+    ],
+    iceCandidatePoolSize: 10
+  };
 
   const endCall = useCallback((notify = true) => {
     if (peerConnection.current) { peerConnection.current.close(); peerConnection.current = null; }
     if (localStream.current) { localStream.current.getTracks().forEach(t => t.stop()); localStream.current = null; }
+    iceCandidateBuffer.current = [];
+    remoteDescSet.current = false;
     setCallStatus('idle');
     if (notify) {
       presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_end', payload: { to: otherUser.id } });
     }
   }, [otherUser.id]);
 
+  const flushIceCandidates = () => {
+    iceCandidateBuffer.current.forEach(candidate => {
+      presenceChannelRef.current?.send({ type: 'broadcast', event: 'ice_candidate', payload: { candidate, to: otherUser.id } });
+    });
+    iceCandidateBuffer.current = [];
+  };
+
   const initCall = async (isCaller: boolean) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStream.current = stream;
-      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      const pc = new RTCPeerConnection(ICE_CONFIG);
       peerConnection.current = pc;
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
@@ -194,9 +222,14 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
           remoteAudioRef.current.srcObject = event.streams[0];
         }
       };
+      // Buffer candidates until remote description is confirmed
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          presenceChannelRef.current?.send({ type: 'broadcast', event: 'ice_candidate', payload: { candidate: event.candidate, to: otherUser.id } });
+          if (remoteDescSet.current) {
+            presenceChannelRef.current?.send({ type: 'broadcast', event: 'ice_candidate', payload: { candidate: event.candidate, to: otherUser.id } });
+          } else {
+            iceCandidateBuffer.current.push(event.candidate as RTCIceCandidate);
+          }
         }
       };
 
@@ -218,6 +251,8 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     if (!peerConnection.current || !incomingOfferRef.current) return;
     try {
       await peerConnection.current.setRemoteDescription(new RTCSessionDescription(incomingOfferRef.current));
+      remoteDescSet.current = true;
+      flushIceCandidates();
       const answer = await peerConnection.current.createAnswer();
       await peerConnection.current.setLocalDescription(answer);
       presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_answer', payload: { answer, from: session?.user.id, to: otherUser.id } });
