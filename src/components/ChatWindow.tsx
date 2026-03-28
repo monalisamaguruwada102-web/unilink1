@@ -177,6 +177,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   const iceCandidateBuffer = useRef<RTCIceCandidate[]>([]);
   const incomingIceBufferRef = useRef<RTCIceCandidateInit[]>([]);
   const remoteDescSet = useRef(false);
+  const offerBroadcastIntervalRef = useRef<any>(null);
 
   const ICE_CONFIG = {
     iceServers: [
@@ -199,6 +200,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     if (peerConnection.current) { peerConnection.current.close(); peerConnection.current = null; }
     if (localStream.current) { localStream.current.getTracks().forEach(t => t.stop()); localStream.current = null; }
     if (callDurationRef.current) { clearInterval(callDurationRef.current); callDurationRef.current = null; }
+    if (offerBroadcastIntervalRef.current) { clearInterval(offerBroadcastIntervalRef.current); offerBroadcastIntervalRef.current = null; }
     iceCandidateBuffer.current = [];
     incomingIceBufferRef.current = [];
     remoteDescSet.current = false;
@@ -233,6 +235,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
 
   const initCall = async (isCaller: boolean) => {
     try {
+      if (peerConnection.current) { peerConnection.current.close(); peerConnection.current = null; }
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
       });
@@ -263,6 +266,21 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
         await pc.setLocalDescription(offer);
         presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_offer', payload: { offer, from: session?.user.id, to: otherUser.id } });
         
+        // Periodic re-broadcast to catch receivers who are navigating
+        if (offerBroadcastIntervalRef.current) clearInterval(offerBroadcastIntervalRef.current);
+        offerBroadcastIntervalRef.current = setInterval(() => {
+          presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_offer', payload: { offer, from: session?.user.id, to: otherUser.id } });
+          
+          // Also try global channel again just in case
+          const globalChan = supabase.channel(`user_channel_${otherUser.id}`);
+          globalChan.subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              globalChan.send({ type: 'broadcast', event: 'call_offer', payload: { matchId: matchId, offer, from: session?.user.id, to: otherUser.id } });
+              setTimeout(() => supabase.removeChannel(globalChan), 1500);
+            }
+          });
+        }, 3000);
+
         // Alert user globally inside the app via broadcast
         const globalChan = supabase.channel(`user_channel_${otherUser.id}`);
         globalChan.subscribe((status) => {
@@ -290,6 +308,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   };
 
   const acceptCall = async () => {
+    if (callStatus === 'connected') return;
     await initCall(false);
     if (!peerConnection.current || !incomingOfferRef.current) return;
     try {
@@ -426,6 +445,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
           processIncomingIceCandidates();
           setCallStatus('connected');
           if (callDurationRef.current) clearInterval(callDurationRef.current);
+          if (offerBroadcastIntervalRef.current) { clearInterval(offerBroadcastIntervalRef.current); offerBroadcastIntervalRef.current = null; }
           setCallDuration(0);
           callDurationRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
         }
