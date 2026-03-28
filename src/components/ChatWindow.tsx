@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
-import { Send, ArrowLeft, Mic, Smile, MoreVertical, Play, User, MapPin, Grid, Pause, Check, Phone } from 'lucide-react';
+import { Send, ArrowLeft, Mic, Smile, MoreVertical, Play, User, MapPin, Grid, Pause, Check, Phone, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
@@ -394,6 +394,33 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     }
   };
 
+  const handleClearChat = async () => {
+    if (!window.confirm("⚠️ Clear Chat History?\n\nThis will permanently delete all messages in this conversation from the database. This action cannot be undone.")) return;
+    
+    try {
+      setUploading(true); // show loader
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('match_id', matchId);
+      
+      if (error) throw error;
+      
+      setMessages([]);
+      setShowMenu(false);
+      
+      // Update global unread
+      if (session?.user.id) {
+        useFeatureStore.getState().fetchGlobalUnread(session.user.id);
+      }
+    } catch (err) {
+      console.error('Clear chat error:', err);
+      alert('Failed to clear chat. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const uploadVoiceNote = async (blob: Blob, mimeType: string) => {
     if (!session || blob.size < 100) return; // Ignore empty/corrupt recordings
     setUploading(true);
@@ -602,9 +629,19 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
                   {/* View Posts */}
                   <button
                     onClick={() => { setShowMenu(false); setShowProfileSheet(true); fetchOtherUserPosts(); }}
-                    className={`w-full flex items-center gap-3 px-5 py-4 text-[11px] font-black uppercase tracking-widest transition hover:bg-gray-500/10`}
+                    className={`w-full flex items-center gap-3 px-5 py-4 text-[11px] font-black uppercase tracking-widest transition hover:bg-gray-500/10 mb-1`}
                   >
                     <Grid size={15} className="text-indigo-500" /> Their Posts
+                  </button>
+
+                  <div className={`h-[1px] w-full ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`} />
+
+                  {/* Clear Chat */}
+                  <button
+                    onClick={handleClearChat}
+                    className={`w-full flex items-center gap-3 px-5 py-4 text-[11px] font-black uppercase tracking-widest transition hover:bg-red-500/10 text-red-500`}
+                  >
+                    <Trash2 size={15} /> Clear Chat
                   </button>
                 </motion.div>
               )}
