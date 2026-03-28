@@ -346,9 +346,9 @@ export const useFeatureStore = create<FeatureState>()(
     try {
       const { data } = await supabase.rpc('get_unread_counts', { my_id: userId });
       if (data) {
-        let total = 0;
-        data.forEach((row: any) => { total += Number(row.unread_count); });
-        set({ globalUnreadMessages: total });
+        // Now counts NUMBER OF UNIQUE CHATS with unread messages, not total messages!
+        const totalMatchesWithUnread = data.filter((row: any) => Number(row.unread_count) > 0).length;
+        set({ globalUnreadMessages: totalMatchesWithUnread });
       }
     } catch(e) {}
   },

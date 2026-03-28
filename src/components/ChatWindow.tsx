@@ -493,16 +493,30 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   
   const formatLastSeen = (lastSeen?: string) => {
     if (!lastSeen) return 'Never';
-    const seconds = Math.floor((new Date().getTime() - new Date(lastSeen).getTime()) / 1000);
+    // Ensure appending 'Z' if missing to enforce UTC parsing from database
+    const utcDate = lastSeen.endsWith('Z') ? lastSeen : `${lastSeen}Z`;
+    const targetDate = new Date(utcDate);
+    const now = new Date();
+    
+    if (isNaN(targetDate.getTime())) return 'Recently'; // Safe fallback
+    
+    const seconds = Math.floor((now.getTime() - targetDate.getTime()) / 1000);
+    
     if (seconds < 60) return 'Just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) {
-      const remainingMinutes = minutes % 60;
-      return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m ago` : `${hours}h ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    
+    const hours = Math.floor(seconds / 3600);
+    if (hours < 24 && now.getDate() === targetDate.getDate()) {
+      return `Today at ${targetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     }
-    return new Date(lastSeen).toLocaleDateString();
+    
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (yesterday.getDate() === targetDate.getDate()) {
+      return `Yesterday at ${targetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
+    
+    return `${targetDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${targetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   };
 
 

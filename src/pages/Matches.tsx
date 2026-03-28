@@ -19,6 +19,20 @@ export default function Matches() {
   const { isDarkMode } = useFeatureStore();
   const navigate = useNavigate();
 
+  const formatTimeAgo = (lastSeen?: string) => {
+    if (!lastSeen) return 'Poly Student';
+    const utcDate = lastSeen.endsWith('Z') ? lastSeen : `${lastSeen}Z`;
+    const d = new Date(utcDate);
+    if (isNaN(d.getTime())) return 'Recently';
+    const seconds = Math.floor((new Date().getTime() - d.getTime()) / 1000);
+    if (seconds < 60) return 'Active Now';
+    if (seconds < 3600) return `Seen ${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400 && new Date().getDate() === d.getDate()) {
+       return `Seen today at ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit'})}`;
+    }
+    return `Seen ${d.toLocaleDateString([], { month: 'short', day: 'numeric'})}`;
+  };
+
   useEffect(() => {
     fetchData(true);
     
@@ -277,11 +291,11 @@ export default function Matches() {
                          ? 'bg-green-500' 
                          : 'bg-gray-400'
                        }`} />
-                       {/* ── Unread badge ── */}
-                       {(unreadCounts[match.id] || 0) > 0 && (
-                         <span className="absolute -top-1.5 -left-1.5 min-w-[20px] h-5 bg-red-500 text-white text-[9px] flex items-center justify-center rounded-full font-black border-2 border-white dark:border-gray-900 px-1">
+                       {/* Unread Messages Badge */}
+                       {unreadCounts[match.id] > 0 && (
+                         <div className="absolute top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white shadow ring-2 ring-white dark:ring-gray-900 px-1">
                            {unreadCounts[match.id] > 99 ? '99+' : unreadCounts[match.id]}
-                         </span>
+                         </div>
                        )}
                     </div>
                     
@@ -295,11 +309,7 @@ export default function Matches() {
                            </span>
                         </div>
                        <p className="text-[10px] font-bold text-primary-500 uppercase tracking-widest mb-1 truncate">
-                         {match.user.last_seen && (new Date().getTime() - new Date(match.user.last_seen).getTime() < 60000) 
-                           ? 'Active Now' 
-                           : match.user.last_seen 
-                             ? `Seen ${new Date(match.user.last_seen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                             : match.user.course || 'Poly Student'}
+                         {formatTimeAgo(match.user.last_seen)}
                        </p>
                        <p className="text-xs opacity-50 font-medium truncate italic pr-4">
                          {match.lastMessage 

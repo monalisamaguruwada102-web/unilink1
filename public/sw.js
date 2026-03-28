@@ -27,8 +27,8 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body || 'You have a new notification',
-    icon: '/icon-192.png',
-    badge: '/icon-72.png',
+    icon: '/pwa-192x192.png',
+    badge: '/favicon.svg',
     tag: data.tag || data.type || 'general',       // Replaces same-type duplicates
     renotify: true,
     requireInteraction: isCall,                    // Call alerts persist until acted on
