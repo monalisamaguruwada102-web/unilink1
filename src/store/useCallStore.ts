@@ -14,7 +14,6 @@ interface CallStore {
   peerConnection: RTCPeerConnection | null;
   incomingOffer: any | null;
   
-  // Actions
   setCallStatus: (status: CallStatus) => void;
   setOtherUser: (user: any) => void;
   setMatchId: (id: string | null) => void;
@@ -26,6 +25,9 @@ interface CallStore {
   endCall: (notify: boolean, myId: string) => void;
   addRemoteIceCandidate: (candidate: any) => Promise<void>;
   handleCallAnswer: (answer: any) => Promise<void>;
+  
+  // Signaling
+  startSignaling: (myId: string) => void;
 }
 
 const ICE_CONFIG = {
@@ -271,5 +273,42 @@ export const useCallStore = create<CallStore>((set, get) => ({
         }
       });
     }
+  },
+
+  startSignaling: (myId) => {
+    const channelName = `user_channel_${myId}`;
+    const channel = supabase.channel(channelName, { config: { broadcast: { self: false } } })
+      .on('broadcast', { event: 'call_offer' }, async (msg: any) => {
+        const { payload } = msg;
+        if (payload && payload.to === myId && get().callStatus === 'idle') {
+          const { data } = await supabase.from('users').select('name, avatar_url').eq('id', payload.from).single();
+          set({
+            otherUser: { id: payload.from, name: data?.name || 'Student', avatar_url: data?.avatar_url || '' },
+            matchId: payload.matchId,
+            incomingOffer: payload.offer,
+            callStatus: 'ringing'
+          });
+        }
+      })
+      .on('broadcast', { event: 'call_answer' }, (msg: any) => {
+        if (get().callStatus === 'calling') {
+          get().handleCallAnswer(msg.payload.answer);
+        }
+      })
+      .on('broadcast', { event: 'ice_candidate' }, (msg: any) => {
+        if (msg.payload.to === myId) {
+          get().addRemoteIceCandidate(msg.payload.candidate);
+        }
+      })
+      .on('broadcast', { event: 'call_end' }, () => {
+        get().endCall(false, myId);
+      })
+      .on('broadcast', { event: 'call_declined' }, () => {
+        set({ callStatus: 'declined' });
+        setTimeout(() => get().endCall(false, myId), 3000);
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
   }
 }));

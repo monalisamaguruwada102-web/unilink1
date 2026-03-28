@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { supabase } from './lib/supabase';
 import { useAuthStore } from './store/useAuthStore';
 import { useFeatureStore } from './store/useFeatureStore';
+import { useCallStore } from './store/useCallStore';
 import { registerServiceWorker, subscribeToPush } from './lib/pushManager';
 
 import IncomingCallModal from './components/IncomingCallModal';
@@ -34,6 +35,8 @@ export default function App() {
          fetchFeatures();
          fetchGlobalUnread(session.user.id);
          subscribeToDatabaseEvents(session.user.id);
+         useCallStore.getState().startSignaling(session.user.id);
+         
          // Register push notifications (if already permitted)
          registerServiceWorker().then(() => {
            if (Notification.permission === 'granted') {
@@ -52,6 +55,7 @@ export default function App() {
          fetchFeatures();
          fetchGlobalUnread(session.user.id);
          subscribeToDatabaseEvents(session.user.id);
+         useCallStore.getState().startSignaling(session.user.id);
       }
     });
 
