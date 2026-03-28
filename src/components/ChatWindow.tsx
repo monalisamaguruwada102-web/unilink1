@@ -168,6 +168,8 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   const msgsContainerRef = useRef<HTMLDivElement>(null);
 
   const [callStatus, setCallStatus] = useState<'idle' | 'calling' | 'ringing' | 'connected'>('idle');
+  const [callDuration, setCallDuration] = useState(0);
+  const callDurationRef = useRef<any>(null);
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const localStream = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
@@ -196,10 +198,12 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   const endCall = useCallback((notify = true) => {
     if (peerConnection.current) { peerConnection.current.close(); peerConnection.current = null; }
     if (localStream.current) { localStream.current.getTracks().forEach(t => t.stop()); localStream.current = null; }
+    if (callDurationRef.current) { clearInterval(callDurationRef.current); callDurationRef.current = null; }
     iceCandidateBuffer.current = [];
     incomingIceBufferRef.current = [];
     remoteDescSet.current = false;
     setCallStatus('idle');
+    setCallDuration(0);
     if (notify) {
       presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_end', payload: { to: otherUser.id } });
       const globalChan = supabase.channel(`user_channel_${otherUser.id}`);
@@ -297,6 +301,9 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
       await peerConnection.current.setLocalDescription(answer);
       presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_answer', payload: { answer, from: session?.user.id, to: otherUser.id } });
       setCallStatus('connected');
+      if (callDurationRef.current) clearInterval(callDurationRef.current);
+      setCallDuration(0);
+      callDurationRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
     } catch(e) {
       endCall(true);
     }
@@ -418,6 +425,9 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
           flushIceCandidates();
           processIncomingIceCandidates();
           setCallStatus('connected');
+          if (callDurationRef.current) clearInterval(callDurationRef.current);
+          setCallDuration(0);
+          callDurationRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
         }
       })
       .on('broadcast', { event: 'ice_candidate' }, async (payload: any) => {
@@ -433,7 +443,9 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
         if (payload.payload.to === session?.user.id) {
           if (peerConnection.current) { peerConnection.current.close(); peerConnection.current = null; }
           if (localStream.current) { localStream.current.getTracks().forEach((t:any) => t.stop()); localStream.current = null; }
+          if (callDurationRef.current) { clearInterval(callDurationRef.current); callDurationRef.current = null; }
           setCallStatus('idle');
+          setCallDuration(0);
         }
       })
       .subscribe(async (status: string) => {
@@ -485,10 +497,16 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
 
   // Handle global cross-tab Accept Call redirect
   useEffect(() => {
-    if (searchParams.get('answer') === 'true' && callStatus === 'idle') {
-      acceptCall();
-      // Silently clean URL to prevent refresh loops
-      window.history.replaceState({}, '', `/chat/${matchId}`);
+    // If we have an answer flag in the URL, try to accept immediately. 
+    // We only do this if we ARE NOT already connected.
+    if (searchParams.get('answer') === 'true' && callStatus !== 'connected') {
+      // Small timeout to allow signaling channel to initialize
+      const timeout = setTimeout(() => {
+        acceptCall();
+        // Silently clean URL to prevent refresh loops
+        window.history.replaceState({}, '', `/chat/${matchId}`);
+      }, 500);
+      return () => clearTimeout(timeout);
     }
   }, [searchParams.get('answer'), callStatus]);
 
@@ -1020,7 +1038,13 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
               ) : callStatus === 'ringing' ? (
                 <>Incoming Voice Call <span className="w-2 h-2 rounded-full animate-pulse bg-current" /></>
               ) : (
-                <><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Connected</>
+                <div className="flex flex-col items-center gap-2">
+                   <div className="flex items-center gap-2 text-green-500">
+                     <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
+                     <span className="text-xl tabular-nums font-black">{formatTime(callDuration)}</span>
+                   </div>
+                   <span className="text-[10px] opacity-70">CONNECTED</span>
+                </div>
               )}
             </p>
 
