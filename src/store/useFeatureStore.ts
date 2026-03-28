@@ -582,7 +582,11 @@ export const useFeatureStore = create<FeatureState>()(
               ? state.postLikes 
               : [...state.postLikes, payload.new as PostLike],
             posts: state.posts.map(p => p.id === payload.new.post_id 
-              ? { ...p, is_liked: isMe ? true : p.is_liked } 
+              ? { 
+                  ...p, 
+                  likes: state.postLikes.some(pl => pl.post_id === payload.new.post_id && pl.user_id === payload.new.user_id) ? p.likes : (p.likes || 0) + 1,
+                  is_liked: isMe ? true : p.is_liked 
+                } 
               : p
             )
           }));
@@ -591,7 +595,11 @@ export const useFeatureStore = create<FeatureState>()(
           set(state => ({
             postLikes: state.postLikes.filter(pl => pl.post_id !== payload.old.post_id || pl.user_id !== payload.old.user_id),
             posts: state.posts.map(p => p.id === payload.old.post_id 
-              ? { ...p, is_liked: isMe ? false : p.is_liked } 
+              ? { 
+                  ...p, 
+                  likes: Math.max(0, (p.likes || 1) - 1), 
+                  is_liked: isMe ? false : p.is_liked 
+                } 
               : p
             )
           }));

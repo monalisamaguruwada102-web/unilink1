@@ -15,8 +15,9 @@ export default function Admin() {
   const [stats, setStats] = useState({ users: 0, posts: 0, reports: 0 });
   const [users, setUsers] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'stats' | 'users' | 'posts' | 'reports'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'users' | 'posts' | 'groups' | 'reports'>('stats');
   
   const { isDarkMode } = useFeatureStore();
   const { session } = useAuthStore();
@@ -51,6 +52,9 @@ export default function Admin() {
       } else if (activeTab === 'posts') {
         const { data } = await supabase.from('posts').select('*, users(name)').order('created_at', { ascending: false }).limit(50);
         setPosts(data || []);
+      } else if (activeTab === 'groups') {
+        const { data } = await supabase.from('course_groups').select('*, users(name)').order('created_at', { ascending: false }).limit(50);
+        setGroups(data || []);
       }
     } catch (err) {
       console.error(err);
@@ -61,23 +65,28 @@ export default function Admin() {
 
   const deletePost = async (id: string) => {
     if (!confirm('Are you sure you want to incinerate this post permanently?')) return;
-    const { error } = await supabase.from('posts').delete().eq('id', id);
+    const { error } = await supabase.rpc('admin_delete_post', { post_id: id, admin_id: session?.user.id });
     if (!error) setPosts(p => p.filter(x => x.id !== id));
+    else alert(error.message);
   };
 
   const deleteUser = async (id: string) => {
     if (!confirm('CRITICAL WARNING: Are you sure you want to permanently execute this user from the platform? This cannot be undone.')) return;
     try {
-      // NOTE: true account deletion requires Supabase Admin API,
-      // but deleting from the public 'users' table will trigger 
-      // cascading deletes across the app and break their session
-      const { error } = await supabase.from('users').delete().eq('id', id);
+      const { error } = await supabase.rpc('admin_delete_user', { target_uid: id, admin_id: session?.user.id });
       if (error) throw error;
       setUsers(u => u.filter(x => x.id !== id));
       alert('User successfully eradicated.');
     } catch (err: any) {
       alert('Failed to delete user: ' + err.message);
     }
+  };
+
+  const deleteGroup = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this community group?')) return;
+    const { error } = await supabase.rpc('admin_delete_group', { target_group_id: id, admin_id: session?.user.id });
+    if (!error) setGroups(g => g.filter(x => x.id !== id));
+    else alert(error.message);
   };
 
   const card = isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100 shadow-xl shadow-gray-200/50';
@@ -133,7 +142,7 @@ export default function Admin() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-8 overflow-x-auto hide-scrollbar">
-        {['stats', 'users', 'posts', 'reports'].map((tab) => (
+        {['stats', 'users', 'posts', 'groups', 'reports'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
@@ -179,6 +188,20 @@ export default function Admin() {
               </div>
               <p className="text-sm font-medium opacity-80 line-clamp-2 mb-2">{p.content}</p>
               {p.image_url && <div className="text-[9px] text-green-500 font-bold uppercase tracking-widest">📷 Includes Media</div>}
+            </div>
+          ))
+        ) : activeTab === 'groups' ? (
+          groups.map(g => (
+            <div key={g.id} className={`p-5 rounded-3xl border ${card}`}>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Creator: @{g.users?.name || 'Unknown'}</p>
+                <button onClick={() => deleteGroup(g.id)} className="p-2 text-red-500 active:scale-90 transition">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+              <p className="text-sm font-black mb-1">{g.name}</p>
+              <p className="text-xs font-bold opacity-60 mb-2 uppercase tracking-widest">{g.course}</p>
+              {g.description && <p className="text-[10px] opacity-40 font-medium line-clamp-2">{g.description}</p>}
             </div>
           ))
         ) : (
