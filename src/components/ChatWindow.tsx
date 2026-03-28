@@ -303,6 +303,9 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
         filter: `match_id=eq.${matchId}`,
       }, (payload: any) => {
         setMessages(prev => [...prev, payload.new as Message]);
+        if (payload.new.sender_id !== session?.user.id) {
+          import('../lib/audioManager').then(({ playSound }) => playSound('message'));
+        }
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
       })
       .subscribe();
@@ -381,6 +384,22 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
       clearTimeout(typingTimeoutRef.current);
     };
   }, [matchId, otherUser.id, session?.user.id, fetchMessages]);
+
+  useEffect(() => {
+    import('../lib/audioManager').then(({ playLoop, stopLoop }) => {
+      if (callStatus === 'ringing') {
+        playLoop('ringtone');
+      } else if (callStatus === 'calling') {
+        playLoop('dialing');
+      } else {
+        stopLoop();
+      }
+    });
+
+    return () => {
+      import('../lib/audioManager').then(({ stopLoop }) => stopLoop());
+    };
+  }, [callStatus]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

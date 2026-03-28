@@ -49,6 +49,10 @@ export default function GroupChat() {
         const { data: userData } = await supabase.from('users').select('name, avatar_url').eq('id', payload.new.sender_id).single();
         const newMessage = { ...payload.new, users: userData } as GroupMessage;
         setMessages((prev) => [...prev, newMessage]);
+        
+        if (payload.new.sender_id !== session?.user.id) {
+          import('../lib/audioManager').then(({ playSound }) => playSound('message'));
+        }
       })
       .on('postgres_changes', {
         event: 'INSERT',

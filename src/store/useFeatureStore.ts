@@ -77,6 +77,7 @@ interface FeatureState {
   isStudyMode: boolean;
   isBoosted: boolean;
   boostEndTime: number | null;
+  isSoundEnabled: boolean;
   
   stories: Story[];
   posts: Post[];
@@ -93,6 +94,7 @@ interface FeatureState {
   setIncognito: (val: boolean) => void;
   setLurkMode: (val: boolean) => void;
   setStudyMode: (val: boolean) => void;
+  setSoundEnabled: (val: boolean) => void;
   triggerBoost: () => void;
   
   // Actions
@@ -137,6 +139,7 @@ export const useFeatureStore = create<FeatureState>()(
   isStudyMode: false,
   isBoosted: false,
   boostEndTime: null,
+  isSoundEnabled: true,
   
   stories: [],
   posts: [],
@@ -153,6 +156,7 @@ export const useFeatureStore = create<FeatureState>()(
   setIncognito: (val) => set({ isIncognito: val }),
   setLurkMode: (val) => set({ isLurkMode: val }),
   setStudyMode: (val) => set({ isStudyMode: val }),
+  setSoundEnabled: (val) => set({ isSoundEnabled: val }),
   
   triggerBoost: () => {
     const endTime = Date.now() + 60 * 60 * 1000;
@@ -572,6 +576,12 @@ export const useFeatureStore = create<FeatureState>()(
         set((state) => ({ 
            notifications: [payload.new, ...state.notifications]
         }));
+        
+        // Audio Triggers
+        import('../lib/audioManager').then(({ playSound }) => {
+           if (payload.new.type === 'match') playSound('match');
+           else playSound('notify');
+        });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'post_likes' }, async (payload: any) => {
         const myId = (await supabase.auth.getSession()).data.session?.user.id;
@@ -626,6 +636,7 @@ export const useFeatureStore = create<FeatureState>()(
       partialize: (state) => ({
         courseGroups: state.courseGroups,
         isDarkMode: state.isDarkMode,
+        isSoundEnabled: state.isSoundEnabled,
       }),
     }
   )

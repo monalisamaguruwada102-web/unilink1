@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useFeatureStore } from '../../store/useFeatureStore';
-import { ShieldAlert, Moon, Sun, MapPin } from 'lucide-react';
+import { ShieldAlert, Moon, Sun, MapPin, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const SOSButton = () => {
@@ -65,6 +65,20 @@ export const ThemeToggle = () => {
       className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 transition-colors"
     >
       {isDarkMode ? <Sun className="text-yellow-400" /> : <Moon className="text-indigo-600" />}
+    </button>
+  );
+};
+
+export const AudioToggle = () => {
+  const { isSoundEnabled, setSoundEnabled } = useFeatureStore();
+  
+  return (
+    <button
+      onClick={() => setSoundEnabled(!isSoundEnabled)}
+      className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 transition-colors"
+      title="Toggle Notification Sounds"
+    >
+      {isSoundEnabled ? <Volume2 className="text-green-500" /> : <VolumeX className="text-gray-400" />}
     </button>
   );
 };

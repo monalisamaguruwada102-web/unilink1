@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { LogOut, Save, Camera, User, BookOpen, GraduationCap, MapPin, Navigation, Loader } from 'lucide-react';
+import { AudioToggle } from '../components/features/SafetyAndTheme';
 
 export default function Profile() {
   const { profile, session, signOut, fetchProfile } = useAuthStore();
@@ -167,9 +168,12 @@ export default function Profile() {
             </button>
           )}
         </h1>
-        <button onClick={() => signOut()} className="flex items-center gap-2 text-red-500 font-semibold text-sm hover:text-red-600 transition-colors">
-          <LogOut size={18} /> Sign Out
-        </button>
+        <div className="flex items-center gap-4">
+          <AudioToggle />
+          <button onClick={() => signOut()} className="flex items-center gap-2 text-red-500 font-semibold text-sm hover:text-red-600 transition-colors">
+            <LogOut size={18} /> Sign Out
+          </button>
+        </div>
       </div>
 
       <form onSubmit={saveProfile} className="max-w-md mx-auto px-6 py-8 space-y-8">
