@@ -287,7 +287,7 @@ export default function Matches() {
                          )}
                        </div>
                        <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-4 border-white dark:border-gray-900 ${
-                         match.user.last_seen && (new Date().getTime() - new Date(match.user.last_seen).getTime() < 60000) 
+                         match.user.last_seen && (new Date().getTime() - new Date(match.user.last_seen).getTime() < 120000) 
                          ? 'bg-green-500' 
                          : 'bg-gray-400'
                        }`} />
@@ -295,19 +295,17 @@ export default function Matches() {
                     
                     <div className="flex-1 overflow-hidden">
                         <div className="flex items-center justify-between mb-1">
-                           <div className="flex items-center gap-1.5 truncate">
+                           <div className="flex items-center gap-2 truncate">
                              <h3 className="font-black text-base truncate">{match.user.name}</h3>
-                           </div>
-                           <div className="flex flex-col items-end gap-1">
-                              <span className={`text-[9px] font-bold uppercase tracking-widest shrink-0 ${unreadCounts[match.id] > 0 ? 'text-green-500' : 'opacity-30'}`}>
-                                {new Date(match.matchedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                              </span>
-                              {unreadCounts[match.id] > 0 && (
-                                <div className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-500 text-[10px] font-black text-white shadow-lg px-1 animate-in zoom-in duration-300">
+                             {unreadCounts[match.id] > 0 && (
+                                <div className="flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full bg-green-500 text-[10px] font-black text-white shadow-lg px-2 animate-in zoom-in duration-300">
                                   {unreadCounts[match.id] > 99 ? '99+' : unreadCounts[match.id]}
                                 </div>
-                              )}
+                             )}
                            </div>
+                            <span className={`text-[9px] font-bold uppercase tracking-widest shrink-0 ${unreadCounts[match.id] > 0 ? 'text-green-500' : 'opacity-30'}`}>
+                              {new Date(match.matchedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                            </span>
                         </div>
                        <p className="text-[10px] font-bold text-primary-500 uppercase tracking-widest mb-1 truncate">
                          {formatTimeAgo(match.user.last_seen)}

@@ -714,21 +714,25 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
           <div className="flex items-center gap-1.5 shrink-0">
              <button
                type={input.trim() ? "submit" : "button"}
-               onMouseDown={!input.trim() ? startRecording : undefined}
-               onMouseUp={!input.trim() ? stopRecording : undefined}
-               onMouseLeave={!input.trim() ? stopRecording : undefined}
-               onTouchStart={!input.trim() ? startRecording : undefined}
-               onTouchEnd={!input.trim() ? stopRecording : undefined}
-               onClick={isRecording ? stopRecording : undefined}
+               onClick={(e) => {
+                 e.preventDefault();
+                 if (input.trim()) {
+                   handleSend(input);
+                 } else if (isRecording) {
+                   stopRecording();
+                 } else {
+                   startRecording();
+                 }
+               }}
                className={`p-3.5 rounded-2xl transition-all flex items-center justify-center
                  ${input.trim() 
                     ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/20 active:scale-95' 
                     : isRecording 
-                      ? 'bg-red-500 text-white shadow-lg animate-pulse' 
+                      ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' 
                       : (isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500')
                  }`}
              >
-               {input.trim() ? <Send size={20} /> : <Mic size={20} />}
+               {input.trim() ? <Send size={20} /> : isRecording ? <Send size={20} className="text-white fill-current" /> : <Mic size={20} />}
              </button>
 
 
