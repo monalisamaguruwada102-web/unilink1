@@ -75,9 +75,16 @@ export default function IncomingCallModal() {
         <div className="flex items-center gap-6 w-full justify-center">
           <button 
             onClick={() => {
+              // Send explicit decline broadcast to notify caller
+              const globalChan = supabase.channel(`user_channel_${incomingCall.from}`);
+              globalChan.subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                  globalChan.send({ type: 'broadcast', event: 'call_declined', payload: { to: incomingCall.from, from: session?.user.id } });
+                  setTimeout(() => supabase.removeChannel(globalChan), 1500);
+                }
+              });
               setIncomingCall(null);
               stopLoop();
-              // In the future this could explicitly send a Reject signaling pulse back 
             }}
             className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 shadow-xl flex items-center justify-center text-white transition-all active:scale-90 border-4 border-red-400/30"
           >

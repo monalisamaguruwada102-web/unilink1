@@ -167,7 +167,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   const presenceChannelRef = useRef<any>(null);
   const msgsContainerRef = useRef<HTMLDivElement>(null);
 
-  const [callStatus, setCallStatus] = useState<'idle' | 'calling' | 'ringing' | 'connected'>('idle');
+  const [callStatus, setCallStatus] = useState<'idle' | 'calling' | 'ringing' | 'connected' | 'declined'>('idle');
   const [callDuration, setCallDuration] = useState(0);
   const callDurationRef = useRef<any>(null);
   const peerConnection = useRef<RTCPeerConnection | null>(null);
@@ -204,19 +204,22 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     iceCandidateBuffer.current = [];
     incomingIceBufferRef.current = [];
     remoteDescSet.current = false;
+    const prevStatus = callStatus; // Capture status before setting to idle
     setCallStatus('idle');
     setCallDuration(0);
+
     if (notify) {
-      presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_end', payload: { to: otherUser.id } });
+      const eventType = prevStatus === 'ringing' || prevStatus === 'calling' ? 'call_declined' : 'call_end';
+      presenceChannelRef.current?.send({ type: 'broadcast', event: eventType, payload: { to: otherUser.id, from: session?.user.id } });
       const globalChan = supabase.channel(`user_channel_${otherUser.id}`);
       globalChan.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          globalChan.send({ type: 'broadcast', event: 'call_end', payload: { from: session?.user.id, to: otherUser.id } });
+          globalChan.send({ type: 'broadcast', event: eventType, payload: { from: session?.user.id, to: otherUser.id } });
           setTimeout(() => supabase.removeChannel(globalChan), 2000);
         }
       });
     }
-  }, [otherUser.id]);
+  }, [otherUser.id, callStatus, session?.user.id]);
 
   const flushIceCandidates = () => {
     iceCandidateBuffer.current.forEach(candidate => {
@@ -466,6 +469,12 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
           if (callDurationRef.current) { clearInterval(callDurationRef.current); callDurationRef.current = null; }
           setCallStatus('idle');
           setCallDuration(0);
+        }
+      })
+      .on('broadcast', { event: 'call_declined' }, async (payload: any) => {
+        if (payload.payload.to === session?.user.id) {
+          setCallStatus('declined');
+          setTimeout(() => endCall(false), 2000);
         }
       })
       .subscribe(async (status: string) => {
@@ -1059,6 +1068,8 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
                 <>Calling... <span className="w-2 h-2 rounded-full animate-bounce bg-current" /></>
               ) : callStatus === 'ringing' ? (
                 <>Incoming Voice Call <span className="w-2 h-2 rounded-full animate-pulse bg-current" /></>
+              ) : callStatus === 'declined' ? (
+                <span className="text-red-500 font-black animate-pulse uppercase">Call Declined</span>
               ) : (
                 <div className="flex flex-col items-center gap-2">
                    <div className="flex items-center gap-2 text-green-500">
