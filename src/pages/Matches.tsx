@@ -58,6 +58,10 @@ export default function Matches() {
         .select(`
           id,
           created_at,
+          user1_id,
+          user2_id,
+          user1_cleared_at,
+          user2_cleared_at,
           last_message_content,
           last_message_at,
           last_message_type,
@@ -71,14 +75,24 @@ export default function Matches() {
       if (matchesData) {
         const validMatches = matchesData.filter((m: any) => m.user1 && m.user2);
         setMatches(validMatches.map((m: any) => {
-          const otherUser = m.user1?.id === session.user.id ? m.user2 : m.user1;
+          const isUser1 = m.user1_id === session?.user.id;
+          const otherUser = isUser1 ? m.user2 : m.user1;
+          const myClearedAtArray = isUser1 ? m.user1_cleared_at : m.user2_cleared_at;
+          
+          const lastMsgAt = m.last_message_at;
+          const isHistoryCleared = myClearedAtArray && lastMsgAt && new Date(lastMsgAt) <= new Date(myClearedAtArray);
+
           return { 
             id: m.id, 
             user: otherUser, 
+            user1_id: m.user1_id,
+            user2_id: m.user2_id,
+            user1_cleared_at: m.user1_cleared_at,
+            user2_cleared_at: m.user2_cleared_at,
             matchedAt: m.created_at,
-            lastMessage: m.last_message_content ? {
+            lastMessage: (m.last_message_content && !isHistoryCleared) ? {
                 content: m.last_message_content,
-                created_at: m.last_message_at,
+                at: m.last_message_at,
                 type: m.last_message_type
             } : null
           };

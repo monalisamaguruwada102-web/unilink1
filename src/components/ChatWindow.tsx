@@ -195,10 +195,23 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
 
   // ─── Load initial messages (paginated) ───────────────────────────────────
   const fetchMessages = useCallback(async (pageNum: number, prepend = false) => {
-    const { data } = await supabase
+    // 1. Get current match details for cleared_at filter
+    const { data: matchData } = await supabase.from('matches').select('*').eq('id', matchId).single();
+    if (!matchData) return;
+    
+    const isUser1 = matchData.user1_id === session?.user.id;
+    const myClearedAt = isUser1 ? matchData.user1_cleared_at : matchData.user2_cleared_at;
+
+    let query = supabase
       .from('messages')
       .select('*')
-      .eq('match_id', matchId)
+      .eq('match_id', matchId);
+    
+    if (myClearedAt) {
+      query = query.gt('created_at', myClearedAt);
+    }
+
+    const { data } = await query
       .order('created_at', { ascending: false })
       .range(pageNum * PAGE_SIZE, pageNum * PAGE_SIZE + PAGE_SIZE - 1);
 
@@ -206,7 +219,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     if (data.length < PAGE_SIZE) setHasMore(false);
     const ordered = [...data].reverse();
     setMessages(prev => prepend ? [...ordered, ...prev] : ordered);
-  }, [matchId]);
+  }, [matchId, session?.user.id]);
 
   // ─── Infinite scroll upward ───────────────────────────────────────────────
   const loadMore = useCallback(async () => {
@@ -395,21 +408,25 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   };
 
   const handleClearChat = async () => {
-    if (!window.confirm("⚠️ Clear Chat History?\n\nThis will permanently delete all messages in this conversation from the database. This action cannot be undone.")) return;
+    if (!window.confirm("⚠️ Clear Chat History for yourself?\n\nThis will hide your past messages. The other person will still see the conversation history.")) return;
     
     try {
-      setUploading(true); // show loader
+      setUploading(true);
+      
+      const { data: matchData } = await supabase.from('matches').select('user1_id').eq('id', matchId).single();
+      const isUser1 = matchData?.user1_id === session?.user.id;
+      const updateField = isUser1 ? 'user1_cleared_at' : 'user2_cleared_at';
+
       const { error } = await supabase
-        .from('messages')
-        .delete()
-        .eq('match_id', matchId);
+        .from('matches')
+        .update({ [updateField]: new Date().toISOString() })
+        .eq('id', matchId);
       
       if (error) throw error;
       
       setMessages([]);
       setShowMenu(false);
       
-      // Update global unread
       if (session?.user.id) {
         useFeatureStore.getState().fetchGlobalUnread(session.user.id);
       }
