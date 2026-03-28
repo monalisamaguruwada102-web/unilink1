@@ -249,6 +249,8 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
         setMessages(prev => [...prev, payload.new as Message]);
         if (payload.new.sender_id !== session?.user.id) {
           import('../lib/audioManager').then(({ playSound }) => playSound('message'));
+          // Mark as read immediately since we are viewing the chat
+          supabase.rpc('mark_match_as_read', { target_match_id: matchId, my_id: session?.user.id });
         }
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
       })

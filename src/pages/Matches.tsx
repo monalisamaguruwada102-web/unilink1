@@ -40,7 +40,7 @@ export default function Matches() {
     const channel = supabase.channel('realtime_matches_likes_improved')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData(false))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, () => fetchData(false))
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => fetchData(false))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => fetchData(false))
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };

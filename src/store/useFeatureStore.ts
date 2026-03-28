@@ -607,8 +607,8 @@ export const useFeatureStore = create<FeatureState>()(
            else playSound('notify');
         });
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-        if (payload.new.sender_id !== userId) {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload: any) => {
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
           get().fetchGlobalUnread(userId);
         }
       })
