@@ -38,16 +38,17 @@ export default function Matches() {
     
     // Real-time updates for matches, likes, AND live messages
     const channel = supabase.channel('realtime_matches_likes_improved')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData(false))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, () => fetchData(false))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => fetchData(false))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData(false, true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, () => fetchData(false, true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => fetchData(false, true))
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [session?.user?.id]);
 
-  const fetchData = async (isInitial = false) => {
+  const fetchData = async (isInitial = false, delay = false) => {
     if (!session) return;
+    if (delay) await new Promise(r => setTimeout(r, 1000));
     if (isInitial) setLoading(true);
     
     try {

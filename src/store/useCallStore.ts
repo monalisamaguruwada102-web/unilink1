@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { playLoop, stopLoop } from '../lib/audioManager';
 
 export type CallStatus = 'idle' | 'calling' | 'ringing' | 'connected' | 'declined';
 
@@ -111,6 +112,7 @@ export const useCallStore = create<CallStore>((set, get) => ({
       if (isCaller) {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
+        playLoop('dialing');
         
         const broadcastOffer = () => {
            const channel = supabase.channel(`presence_${matchId}`);
@@ -186,6 +188,7 @@ export const useCallStore = create<CallStore>((set, get) => ({
       });
 
       set({ callStatus: 'connected', callDuration: 0 });
+      stopLoop();
       if (callTimerInterval) clearInterval(callTimerInterval);
       callTimerInterval = setInterval(() => set(s => ({ callDuration: s.callDuration + 1 })), 1000);
     } catch (e) {
@@ -211,6 +214,7 @@ export const useCallStore = create<CallStore>((set, get) => ({
       iceCandidateBuffer = [];
 
       set({ callStatus: 'connected', callDuration: 0 });
+      stopLoop();
       if (callTimerInterval) clearInterval(callTimerInterval);
       callTimerInterval = setInterval(() => set(s => ({ callDuration: s.callDuration + 1 })), 1000);
     } catch (e) {}
@@ -234,6 +238,7 @@ export const useCallStore = create<CallStore>((set, get) => ({
     if (localStream) localStream.getTracks().forEach(t => t.stop());
     if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
     if (offerBroadcastInterval) { clearInterval(offerBroadcastInterval); offerBroadcastInterval = null; }
+    stopLoop();
     
     const prevStatus = callStatus;
     set({ 

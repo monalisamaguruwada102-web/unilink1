@@ -344,6 +344,8 @@ export const useFeatureStore = create<FeatureState>()(
 
   fetchGlobalUnread: async (userId: string) => {
     try {
+      // Small delay for DB propagation
+      await new Promise(r => setTimeout(r, 1000));
       const { data } = await supabase.rpc('get_unread_counts', { my_id: userId });
       if (data) {
         // Now counts NUMBER OF UNIQUE CHATS with unread messages, not total messages!

@@ -19,17 +19,11 @@ export default function IncomingCallModal() {
       .on('broadcast', { event: 'call_offer' }, async (msg: any) => {
         const { payload } = msg;
         if (payload && payload.to === session.user.id) {
-          // Verify we aren't already in the correct chat window so we dont overlay duplicate prompts
-          const currentPath = window.location.pathname;
-          const chatPath = `/chat/${payload.matchId || payload.from}`;
-          
-          if (!currentPath.includes(chatPath)) {
-            // Fetch caller details for banner
-            const { data } = await supabase.from('users').select('name, avatar_url').eq('id', payload.from).single();
-            setCallerProfile(data);
-            setIncomingCall(payload);
-            playLoop('ringtone');
-          }
+          // Fetch caller details for banner
+          const { data } = await supabase.from('users').select('name, avatar_url').eq('id', payload.from).single();
+          setCallerProfile(data);
+          setIncomingCall(payload);
+          playLoop('ringtone');
         }
       })
       .on('broadcast', { event: 'call_end' }, (msg: any) => {
