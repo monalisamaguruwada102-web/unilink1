@@ -6,8 +6,10 @@ import { useFeatureStore } from '../store/useFeatureStore';
 
 export default function BottomNav() {
   const location = useLocation();
-  const { isDarkMode } = useFeatureStore();
+  const { isDarkMode, globalUnreadMessages, notifications } = useFeatureStore();
   
+  const unreadNotifs = notifications.filter(n => !n.is_read).length;
+
   const navItems = [
     { to: '/', icon: Home, label: 'Feed' },
     { to: '/discover', icon: Sparkles, label: 'Discover' },
@@ -39,14 +41,26 @@ export default function BottomNav() {
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 />
               )}
-              <item.icon 
-                size={22} 
-                strokeWidth={isActive ? 2.5 : 1.8}
-                className={cn(
-                  "relative z-10 transition-colors duration-200",
-                  isActive ? "text-primary-500" : "text-gray-400"
+              <div className="relative">
+                <item.icon 
+                  size={22} 
+                  strokeWidth={isActive ? 2.5 : 1.8}
+                  className={cn(
+                    "relative z-10 transition-colors duration-200",
+                    isActive ? "text-primary-500" : "text-gray-400"
+                  )}
+                />
+                {item.label === 'Matches' && globalUnreadMessages > 0 && (
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-red-500 text-white text-[8px] flex items-center justify-center rounded-full font-black border-2 border-white dark:border-gray-900 px-1 z-20">
+                    {globalUnreadMessages > 99 ? '99+' : globalUnreadMessages}
+                  </span>
                 )}
-              />
+                {item.label === 'Feed' && unreadNotifs > 0 && (
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-red-500 text-white text-[8px] flex items-center justify-center rounded-full font-black border-2 border-white dark:border-gray-900 px-1 z-20">
+                    {unreadNotifs > 99 ? '99+' : unreadNotifs}
+                  </span>
+                )}
+              </div>
               <span className={cn(
                 "text-[9px] font-black uppercase tracking-wider relative z-10 transition-colors duration-200",
                 isActive ? "text-primary-500" : "text-gray-400"

@@ -23,7 +23,7 @@ import AuthCallback from './pages/AuthCallback';
 
 export default function App() {
   const { session, profile, setSession, fetchProfile, loading } = useAuthStore();
-  const { isDarkMode, fetchFeatures } = useFeatureStore();
+  const { isDarkMode, fetchFeatures, fetchGlobalUnread, subscribeToDatabaseEvents } = useFeatureStore();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }: any) => {
@@ -31,10 +31,13 @@ export default function App() {
       if (session?.user?.id) {
          fetchProfile(session.user.id);
          fetchFeatures();
-         // Register push notifications
-         registerServiceWorker().then(async () => {
-           const granted = await requestNotificationPermission();
-           if (granted) subscribeToPush(session.user.id);
+         fetchGlobalUnread(session.user.id);
+         subscribeToDatabaseEvents(session.user.id);
+         // Register push notifications (if already permitted)
+         registerServiceWorker().then(() => {
+           if (Notification.permission === 'granted') {
+             subscribeToPush(session.user.id);
+           }
          });
       }
     });
@@ -45,7 +48,9 @@ export default function App() {
       setSession(session);
       if (session?.user?.id) {
          fetchProfile(session.user.id);
-         fetchFeatures(); // Populate 20 features data on state change
+         fetchFeatures();
+         fetchGlobalUnread(session.user.id);
+         subscribeToDatabaseEvents(session.user.id);
       }
     });
 

@@ -89,6 +89,7 @@ interface FeatureState {
   crushList: string[];
   storyPollResponses: StoryPollResponse[];
   onlineCount: number;
+  globalUnreadMessages: number;
 
   toggleDarkMode: () => void;
   setIncognito: (val: boolean) => void;
@@ -96,6 +97,10 @@ interface FeatureState {
   setStudyMode: (val: boolean) => void;
   setSoundEnabled: (val: boolean) => void;
   triggerBoost: () => void;
+  removeFeature: (id: string, table: 'crush_list' | 'course_groups') => void;
+  subscribeToDatabaseEvents: (userId: string) => void;
+  fetchGlobalUnread: (userId: string) => Promise<void>;
+  markMatchReadInStore: (matchId: string) => void;
   
   // Actions
   voteInPoll: (optionIndex: number) => Promise<void>;
@@ -151,12 +156,14 @@ export const useFeatureStore = create<FeatureState>()(
   crushList: [],
   storyPollResponses: [],
   onlineCount: 0,
+  globalUnreadMessages: 0,
 
   toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
   setIncognito: (val) => set({ isIncognito: val }),
   setLurkMode: (val) => set({ isLurkMode: val }),
   setStudyMode: (val) => set({ isStudyMode: val }),
   setSoundEnabled: (val) => set({ isSoundEnabled: val }),
+  removeFeature: () => {},
   
   triggerBoost: () => {
     const endTime = Date.now() + 60 * 60 * 1000;
@@ -331,8 +338,23 @@ export const useFeatureStore = create<FeatureState>()(
   createPoll: async (question, options, creatorId) => {
     const { data } = await supabase.from('campus_polls').insert({ creator_id: creatorId, question, options }).select().single();
     if (data) {
-       set({ currentPoll: data });
+       set({ currentPoll: null });
     }
+  },
+
+  fetchGlobalUnread: async (userId: string) => {
+    try {
+      const { data } = await supabase.rpc('get_unread_counts', { my_id: userId });
+      if (data) {
+        let total = 0;
+        data.forEach((row: any) => { total += Number(row.unread_count); });
+        set({ globalUnreadMessages: total });
+      }
+    } catch(e) {}
+  },
+
+  markMatchReadInStore: (_matchId: string) => {
+    set(state => ({ globalUnreadMessages: Math.max(0, state.globalUnreadMessages - 1) }));
   },
 
   submitStoryWithPoll: async (userId: string, userName: string, imageUrl: string, question: string, options: string[]) => {
@@ -500,12 +522,14 @@ export const useFeatureStore = create<FeatureState>()(
     } else {
        set({ stories: [] });
     }
+  },
 
-    // ==========================================
-    // REACTIVE REALTIME ENGINE SUBSCRIPTIONS
-    // ==========================================
-    const channel = supabase.channel('poly_social_network')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, async (payload) => {
+  // ==========================================
+  // REACTIVE REALTIME ENGINE SUBSCRIPTIONS
+  // ==========================================
+  subscribeToDatabaseEvents: (userId: string) => {
+    const channel = supabase.channel('realtime_core_features_enhanced')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'confessions' }, async (payload: any) => {
         if (payload.eventType === 'INSERT') {
           const { data: userData } = await supabase.from('users').select('name, avatar_url, course').eq('id', payload.new.user_id).single();
           set((state) => ({ 
@@ -583,6 +607,11 @@ export const useFeatureStore = create<FeatureState>()(
            else playSound('notify');
         });
       })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        if (payload.new.sender_id !== userId) {
+          get().fetchGlobalUnread(userId);
+        }
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'post_likes' }, async (payload: any) => {
         const myId = (await supabase.auth.getSession()).data.session?.user.id;
         if (payload.eventType === 'INSERT') {
@@ -619,11 +648,11 @@ export const useFeatureStore = create<FeatureState>()(
     channel.subscribe();
   },
 
-  updateUserProfile: async (userId, updates) => {
+  updateUserProfile: async (userId: string, updates: any) => {
      await supabase.from('users').update(updates).eq('id', userId);
   },
 
-  updatePresence: async (userId) => {
+  updatePresence: async (userId: string) => {
     try {
       await supabase.from('users').update({ last_seen: new Date().toISOString() }).eq('id', userId);
     } catch (err) {

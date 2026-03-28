@@ -22,10 +22,11 @@ export default function Matches() {
   useEffect(() => {
     fetchData(true);
     
-    // Real-time updates for matches and likes
+    // Real-time updates for matches, likes, AND live messages
     const channel = supabase.channel('realtime_matches_likes_improved')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData(false))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, () => fetchData(false))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => fetchData(false))
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -257,6 +258,7 @@ export default function Matches() {
                       // Mark as read immediately on open
                       supabase.rpc('mark_match_as_read', { target_match_id: match.id, my_id: session!.user.id });
                       setUnreadCounts(prev => ({ ...prev, [match.id]: 0 }));
+                      useFeatureStore.getState().fetchGlobalUnread(session!.user.id);
                     }}
                     className={`flex items-center gap-4 p-4 rounded-[2.5rem] border active:scale-95 transition-all group ${card}`}
                   >
