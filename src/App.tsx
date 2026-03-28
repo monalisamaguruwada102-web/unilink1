@@ -6,13 +6,11 @@ import { useFeatureStore } from './store/useFeatureStore';
 import { registerServiceWorker, subscribeToPush } from './lib/pushManager';
 
 import IncomingCallModal from './components/IncomingCallModal';
+import BottomNav from './components/BottomNav';
 
 // Pages
 import Feed from './pages/Feed';
-
-// Pages
 import Auth from './pages/Auth';
-import Feed from './pages/Feed';
 import Discover from './pages/Discover';
 import CommunityHub from './pages/CommunityHub';
 import Matches from './pages/Matches';
