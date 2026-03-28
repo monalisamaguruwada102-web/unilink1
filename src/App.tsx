@@ -6,6 +6,7 @@ import { useFeatureStore } from './store/useFeatureStore';
 import { registerServiceWorker, subscribeToPush } from './lib/pushManager';
 
 import IncomingCallModal from './components/IncomingCallModal';
+import ActiveCallOverlay from './components/ActiveCallOverlay';
 import BottomNav from './components/BottomNav';
 
 // Pages
@@ -163,6 +164,7 @@ function AppLayout({ isDarkMode }: { isDarkMode: boolean }) {
       </Routes>
       {!isChat && <BottomNav />}
       <IncomingCallModal />
+      <ActiveCallOverlay />
     </div>
   );
 }

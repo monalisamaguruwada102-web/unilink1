@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
-import { useNavigate } from 'react-router-dom';
 import { Phone, PhoneOff, User } from 'lucide-react';
 import { playLoop, stopLoop } from '../lib/audioManager';
+import { useCallStore } from '../store/useCallStore';
 
 export default function IncomingCallModal() {
   const { session } = useAuthStore();
-  const navigate = useNavigate();
   const [incomingCall, setIncomingCall] = useState<any>(null);
   const [callerProfile, setCallerProfile] = useState<{name: string, avatar_url: string} | null>(null);
 
@@ -93,9 +92,14 @@ export default function IncomingCallModal() {
 
           <button 
             onClick={() => {
-              stopLoop();
+              const { setIncomingOffer, setOtherUser, setMatchId, acceptCall } = useCallStore.getState();
+              setIncomingOffer(incomingCall.offer);
+              setOtherUser({ id: incomingCall.from, name: callerProfile?.name || 'Student', avatar_url: callerProfile?.avatar_url || '' });
+              setMatchId(incomingCall.matchId || incomingCall.from);
+              
               setIncomingCall(null);
-              navigate(`/chat/${incomingCall.matchId || incomingCall.roomId || incomingCall.from}?answer=true`);
+              stopLoop();
+              if (session?.user.id) acceptCall(session.user.id);
             }}
             className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-600 shadow-xl flex items-center justify-center text-white transition-all active:scale-90 border-4 border-green-400/30 animate-bounce"
           >

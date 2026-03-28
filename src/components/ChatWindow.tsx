@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
-import { Send, ArrowLeft, Mic, Smile, MoreVertical, Play, User, MapPin, Grid, Pause, Check, Phone, PhoneOff } from 'lucide-react';
+import { Send, ArrowLeft, Mic, Smile, MoreVertical, Play, User, MapPin, Grid, Pause, Check, Phone } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
+import { useCallStore } from '../store/useCallStore';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -157,7 +158,6 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
 
   const { session } = useAuthStore();
   const { isDarkMode } = useFeatureStore();
-  const searchParams = new URLSearchParams(window.location.search);
   const bottomRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -167,169 +167,9 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   const presenceChannelRef = useRef<any>(null);
   const msgsContainerRef = useRef<HTMLDivElement>(null);
 
-  const [callStatus, setCallStatus] = useState<'idle' | 'calling' | 'ringing' | 'connected' | 'declined'>('idle');
-  const [callDuration, setCallDuration] = useState(0);
-  const callDurationRef = useRef<any>(null);
-  const peerConnection = useRef<RTCPeerConnection | null>(null);
-  const localStream = useRef<MediaStream | null>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement>(null);
-  const incomingOfferRef = useRef<any>(null);
-  const iceCandidateBuffer = useRef<RTCIceCandidate[]>([]);
-  const incomingIceBufferRef = useRef<RTCIceCandidateInit[]>([]);
-  const remoteDescSet = useRef(false);
-  const offerBroadcastIntervalRef = useRef<any>(null);
+  const { callStatus, setIncomingOffer, setCallStatus, endCall, addRemoteIceCandidate, handleCallAnswer, initCall } = useCallStore();
 
-  const ICE_CONFIG = {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      {
-        urls: [
-          'turn:openrelay.metered.ca:80',
-          'turn:openrelay.metered.ca:443',
-          'turn:openrelay.metered.ca:443?transport=tcp'
-        ],
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-      }
-    ],
-    iceCandidatePoolSize: 10
-  };
-
-  const endCall = useCallback((notify = true) => {
-    if (peerConnection.current) { peerConnection.current.close(); peerConnection.current = null; }
-    if (localStream.current) { localStream.current.getTracks().forEach(t => t.stop()); localStream.current = null; }
-    if (callDurationRef.current) { clearInterval(callDurationRef.current); callDurationRef.current = null; }
-    if (offerBroadcastIntervalRef.current) { clearInterval(offerBroadcastIntervalRef.current); offerBroadcastIntervalRef.current = null; }
-    iceCandidateBuffer.current = [];
-    incomingIceBufferRef.current = [];
-    remoteDescSet.current = false;
-    const prevStatus = callStatus; // Capture status before setting to idle
-    setCallStatus('idle');
-    setCallDuration(0);
-
-    if (notify) {
-      const eventType = prevStatus === 'ringing' || prevStatus === 'calling' ? 'call_declined' : 'call_end';
-      presenceChannelRef.current?.send({ type: 'broadcast', event: eventType, payload: { to: otherUser.id, from: session?.user.id } });
-      const globalChan = supabase.channel(`user_channel_${otherUser.id}`);
-      globalChan.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          globalChan.send({ type: 'broadcast', event: eventType, payload: { from: session?.user.id, to: otherUser.id } });
-          setTimeout(() => supabase.removeChannel(globalChan), 2000);
-        }
-      });
-    }
-  }, [otherUser.id, callStatus, session?.user.id]);
-
-  const flushIceCandidates = () => {
-    iceCandidateBuffer.current.forEach(candidate => {
-      presenceChannelRef.current?.send({ type: 'broadcast', event: 'ice_candidate', payload: { candidate, to: otherUser.id } });
-    });
-    iceCandidateBuffer.current = [];
-  };
-
-  const processIncomingIceCandidates = async () => {
-    if (!peerConnection.current) return;
-    for (const candidate of incomingIceBufferRef.current) {
-      try { await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e){}
-    }
-    incomingIceBufferRef.current = [];
-  };
-
-  const initCall = async (isCaller: boolean) => {
-    try {
-      if (peerConnection.current) { peerConnection.current.close(); peerConnection.current = null; }
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
-      });
-      localStream.current = stream;
-      const pc = new RTCPeerConnection(ICE_CONFIG);
-      peerConnection.current = pc;
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
-      pc.ontrack = (event) => {
-        if (remoteAudioRef.current && event.streams[0]) {
-          remoteAudioRef.current.srcObject = event.streams[0];
-        }
-      };
-      // Buffer candidates until remote description is confirmed
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          if (remoteDescSet.current) {
-            presenceChannelRef.current?.send({ type: 'broadcast', event: 'ice_candidate', payload: { candidate: event.candidate, to: otherUser.id } });
-          } else {
-            iceCandidateBuffer.current.push(event.candidate as RTCIceCandidate);
-          }
-        }
-      };
-
-      if (isCaller) {
-        setCallStatus('calling');
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_offer', payload: { offer, from: session?.user.id, to: otherUser.id } });
-        
-        // Periodic re-broadcast to catch receivers who are navigating
-        if (offerBroadcastIntervalRef.current) clearInterval(offerBroadcastIntervalRef.current);
-        offerBroadcastIntervalRef.current = setInterval(() => {
-          presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_offer', payload: { offer, from: session?.user.id, to: otherUser.id } });
-          
-          // Also try global channel again just in case
-          const globalChan = supabase.channel(`user_channel_${otherUser.id}`);
-          globalChan.subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-              globalChan.send({ type: 'broadcast', event: 'call_offer', payload: { matchId: matchId, offer, from: session?.user.id, to: otherUser.id } });
-              setTimeout(() => supabase.removeChannel(globalChan), 1500);
-            }
-          });
-        }, 3000);
-
-        // Alert user globally inside the app via broadcast
-        const globalChan = supabase.channel(`user_channel_${otherUser.id}`);
-        globalChan.subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            globalChan.send({ type: 'broadcast', event: 'call_offer', payload: { matchId: matchId, offer, from: session?.user.id, to: otherUser.id } });
-            setTimeout(() => supabase.removeChannel(globalChan), 2000);
-          }
-        });
-
-        // Trigger an external PUSH NOTIFICATION for users who are offline or in the background
-        supabase.functions.invoke('push-notify', {
-          body: {
-            user_id: otherUser.id,
-            type: 'call',
-            match_id: matchId,
-            message: `${session?.user.user_metadata?.name || 'A Student'} is calling you! 🎙️`,
-          }
-        });
-      }
-    } catch (err) {
-      console.error('Call failed:', err);
-      alert('Could not access microphone.');
-      endCall(true);
-    }
-  };
-
-  const acceptCall = async () => {
-    if (callStatus === 'connected') return;
-    await initCall(false);
-    if (!peerConnection.current || !incomingOfferRef.current) return;
-    try {
-      await peerConnection.current.setRemoteDescription(new RTCSessionDescription(incomingOfferRef.current));
-      remoteDescSet.current = true;
-      flushIceCandidates();
-      processIncomingIceCandidates();
-      const answer = await peerConnection.current.createAnswer();
-      await peerConnection.current.setLocalDescription(answer);
-      presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_answer', payload: { answer, from: session?.user.id, to: otherUser.id } });
-      setCallStatus('connected');
-      if (callDurationRef.current) clearInterval(callDurationRef.current);
-      setCallDuration(0);
-      callDurationRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
-    } catch(e) {
-      endCall(true);
-    }
-  };
+  // Moved call logic to useCallStore
 
   // ── Derived online status from last_seen (fallback) ──────────────────────
   const isOnlineByLastSeen = otherUser.last_seen
@@ -434,47 +274,31 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
           setIsOtherOnline(true);
         }
       })
-      .on('broadcast', { event: 'call_offer' }, async (payload: any) => {
+      .on('broadcast', { event: 'call_offer' }, (payload: any) => {
         if (payload.payload.to === session?.user.id) {
           setCallStatus('ringing');
-          incomingOfferRef.current = payload.payload.offer;
+          setIncomingOffer(payload.payload.offer);
         }
       })
-      .on('broadcast', { event: 'call_answer' }, async (payload: any) => {
-        if (payload.payload.to === session?.user.id && peerConnection.current) {
-          await peerConnection.current.setRemoteDescription(new RTCSessionDescription(payload.payload.answer));
-          remoteDescSet.current = true;
-          flushIceCandidates();
-          processIncomingIceCandidates();
-          setCallStatus('connected');
-          if (callDurationRef.current) clearInterval(callDurationRef.current);
-          if (offerBroadcastIntervalRef.current) { clearInterval(offerBroadcastIntervalRef.current); offerBroadcastIntervalRef.current = null; }
-          setCallDuration(0);
-          callDurationRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
-        }
-      })
-      .on('broadcast', { event: 'ice_candidate' }, async (payload: any) => {
-        if (payload.payload.to === session?.user.id && peerConnection.current) {
-          if (remoteDescSet.current) {
-            try { await peerConnection.current.addIceCandidate(new RTCIceCandidate(payload.payload.candidate)); } catch(e){}
-          } else {
-            incomingIceBufferRef.current.push(payload.payload.candidate);
-          }
-        }
-      })
-      .on('broadcast', { event: 'call_end' }, async (payload: any) => {
+      .on('broadcast', { event: 'call_answer' }, (payload: any) => {
         if (payload.payload.to === session?.user.id) {
-          if (peerConnection.current) { peerConnection.current.close(); peerConnection.current = null; }
-          if (localStream.current) { localStream.current.getTracks().forEach((t:any) => t.stop()); localStream.current = null; }
-          if (callDurationRef.current) { clearInterval(callDurationRef.current); callDurationRef.current = null; }
-          setCallStatus('idle');
-          setCallDuration(0);
+          handleCallAnswer(payload.payload.answer);
         }
       })
-      .on('broadcast', { event: 'call_declined' }, async (payload: any) => {
+      .on('broadcast', { event: 'ice_candidate' }, (payload: any) => {
+        if (payload.payload.to === session?.user.id) {
+          addRemoteIceCandidate(payload.payload.candidate);
+        }
+      })
+      .on('broadcast', { event: 'call_end' }, (payload: any) => {
+        if (payload.payload.to === session?.user.id) {
+          endCall(false, session?.user.id || '');
+        }
+      })
+      .on('broadcast', { event: 'call_declined' }, (payload: any) => {
         if (payload.payload.to === session?.user.id) {
           setCallStatus('declined');
-          setTimeout(() => endCall(false), 2000);
+          setTimeout(() => endCall(false, session?.user.id || ''), 2000);
         }
       })
       .subscribe(async (status: string) => {
@@ -525,20 +349,6 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   }, [callStatus]);
 
   // Handle global cross-tab Accept Call redirect
-  useEffect(() => {
-    // If we have an answer flag in the URL, try to accept immediately. 
-    // We only do this if we ARE NOT already connected.
-    if (searchParams.get('answer') === 'true' && callStatus !== 'connected') {
-      // Small timeout to allow signaling channel to initialize
-      const timeout = setTimeout(() => {
-        acceptCall();
-        // Silently clean URL to prevent refresh loops
-        window.history.replaceState({}, '', `/chat/${matchId}`);
-      }, 500);
-      return () => clearTimeout(timeout);
-    }
-  }, [searchParams.get('answer'), callStatus]);
-
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
@@ -745,7 +555,9 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
           {/* Three-dot menu and Call */}
           <div className="flex items-center gap-1">
             <button
-              onClick={() => initCall(true)}
+              onClick={() => {
+                if (session?.user.id) initCall(true, otherUser, matchId, session.user.id);
+              }}
               className={`p-2.5 rounded-2xl transition opacity-70 hover:opacity-100 ${isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'}`}
             >
               <Phone size={18} />
@@ -1038,71 +850,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
         )}
       </AnimatePresence>
 
-      {/* ── WEB RTC CALL UI OVERLAY ────────────────────────────────────────── */}
-      <AnimatePresence>
-        {callStatus !== 'idle' && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.05 }}
-            className={`fixed inset-0 z-[70] flex flex-col items-center justify-center ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-white text-gray-900'}`}
-          >
-            <div className="relative mb-12">
-              <div className="w-32 h-32 rounded-full overflow-hidden z-10 relative border-4 border-primary-500 shadow-2xl">
-                {otherUser.avatar_url ? (
-                  <img src={otherUser.avatar_url} className="w-full h-full object-cover" alt="" />
-                ) : (
-                  <div className="w-full h-full bg-primary-500 flex items-center justify-center text-white font-black text-6xl">
-                    {otherUser.name.charAt(0)}
-                  </div>
-                )}
-              </div>
-              {(callStatus === 'calling' || callStatus === 'ringing') && (
-                <span className="absolute inset-0 rounded-full border-[6px] border-primary-500 animate-ping opacity-30" />
-              )}
-            </div>
-            
-            <h2 className="text-3xl font-black mb-2 tracking-tight">{otherUser.name}</h2>
-            <p className="opacity-50 font-black uppercase tracking-widest text-sm mb-16 flex items-center gap-2">
-              {callStatus === 'calling' ? (
-                <>Calling... <span className="w-2 h-2 rounded-full animate-bounce bg-current" /></>
-              ) : callStatus === 'ringing' ? (
-                <>Incoming Voice Call <span className="w-2 h-2 rounded-full animate-pulse bg-current" /></>
-              ) : callStatus === 'declined' ? (
-                <span className="text-red-500 font-black animate-pulse uppercase">Call Declined</span>
-              ) : (
-                <div className="flex flex-col items-center gap-2">
-                   <div className="flex items-center gap-2 text-green-500">
-                     <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
-                     <span className="text-xl tabular-nums font-black">{formatTime(callDuration)}</span>
-                   </div>
-                   <span className="text-[10px] opacity-70">CONNECTED</span>
-                </div>
-              )}
-            </p>
-
-            <div className="flex items-center gap-8">
-              {callStatus === 'ringing' && (
-                <motion.button
-                  whileTap={{ scale: 0.9 }}
-                  onClick={acceptCall}
-                  className="w-16 h-16 rounded-[2rem] bg-green-500 text-white flex justify-center items-center shadow-2xl shadow-green-500/30 font-black"
-                >
-                  <Phone size={24} className="animate-pulse" />
-                </motion.button>
-              )}
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={() => endCall(true)}
-                className="w-16 h-16 rounded-[2rem] bg-red-500 text-white flex justify-center items-center shadow-2xl shadow-red-500/30"
-              >
-                <PhoneOff size={24} />
-              </motion.button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <audio ref={remoteAudioRef} autoPlay />
+      {/* Call UI moved to global ActiveCallOverlay */}
     </div>
   );
 }
