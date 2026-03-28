@@ -573,10 +573,12 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
 
       if (error) throw error;
 
-      // 2. Get Public URL
-      const { data: { publicUrl } } = supabase.storage
+      // 2. Get Public URL (simplified syntax to avoid any TS confusion)
+      const res = supabase.storage
         .from('post-images')
         .getPublicUrl(fileName);
+      
+      const publicUrl = res.data?.publicUrl;
 
       if (!publicUrl) throw new Error('Failed to generate public URL');
 
