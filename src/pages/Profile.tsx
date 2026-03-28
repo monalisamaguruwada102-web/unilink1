@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
-import { LogOut, Save, Camera, User, BookOpen, GraduationCap, MapPin, Navigation, Loader } from 'lucide-react';
+import { LogOut, Save, Camera, User, BookOpen, GraduationCap, MapPin, Navigation, Loader, BellRing } from 'lucide-react';
 import { AudioToggle } from '../components/features/SafetyAndTheme';
+import { requestNotificationPermission, subscribeToPush } from '../lib/pushManager';
 
 export default function Profile() {
   const { profile, session, signOut, fetchProfile } = useAuthStore();
@@ -24,6 +25,7 @@ export default function Profile() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [pushStatus, setPushStatus] = useState<NotificationPermission>('default');
   
   const fileRef = useRef<HTMLInputElement>(null);
   const watchIdRef = useRef<number | null>(null);
@@ -42,6 +44,9 @@ export default function Profile() {
       if (profile.latitude && profile.longitude) {
         setLiveCoords({ lat: profile.latitude, lng: profile.longitude });
       }
+    }
+    if ('Notification' in window) {
+      setPushStatus(Notification.permission);
     }
   }, [profile]);
 
@@ -310,6 +315,45 @@ export default function Profile() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Push Notifications */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
+          <div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase tracking-wider">
+            <BellRing size={14} /> Background Alerts
+          </div>
+          <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+            <div>
+              <h4 className="text-sm font-bold text-gray-900">Push Notifications & Screen Wake</h4>
+              <p className="text-xs text-gray-500 mt-1 max-w-[200px]">Get native OS pop-ups for calls, matches, and texts even when the app is closed.</p>
+            </div>
+            
+            {pushStatus === 'granted' ? (
+              <div className="text-green-500 text-xs font-black uppercase tracking-widest bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">
+                ENABLED ✓
+              </div>
+            ) : pushStatus === 'denied' ? (
+              <div className="text-red-500 text-xs font-black uppercase tracking-widest bg-red-50 px-3 py-1.5 rounded-lg border border-red-200 text-center">
+                BLOCKED ✕<br/><span className="text-[8px]">Unblock in browser</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={async () => {
+                  const granted = await requestNotificationPermission();
+                  if (granted) {
+                     setPushStatus('granted');
+                     if (session) subscribeToPush(session.user.id);
+                  } else {
+                     setPushStatus('denied');
+                  }
+                }}
+                className="w-20 py-2 bg-primary-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+              >
+                ENABLE
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Bio */}

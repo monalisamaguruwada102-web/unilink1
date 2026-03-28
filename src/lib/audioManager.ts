@@ -19,6 +19,30 @@ Object.values(sounds).forEach(audio => {
   audio.load();
 });
 
+let audioUnlocked = false;
+
+// Attempt to seamlessly unlock audio permission on first interaction
+const unlockAudio = () => {
+  if (audioUnlocked) return;
+  try {
+    const p1 = sounds.notify.play();
+    if (p1 !== undefined) {
+      p1.then(() => {
+        sounds.notify.pause();
+        sounds.notify.currentTime = 0;
+        audioUnlocked = true;
+      }).catch(() => {});
+    }
+  } catch(e) {}
+  document.removeEventListener('click', unlockAudio);
+  document.removeEventListener('touchstart', unlockAudio);
+};
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', unlockAudio, { once: true });
+  document.addEventListener('touchstart', unlockAudio, { once: true });
+}
+
 export const playSound = (type: keyof typeof sounds, forceUnmuted = false) => {
   try {
     const isSoundEnabled = useFeatureStore.getState().isSoundEnabled;

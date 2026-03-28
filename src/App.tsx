@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { supabase } from './lib/supabase';
 import { useAuthStore } from './store/useAuthStore';
 import { useFeatureStore } from './store/useFeatureStore';
-import { registerServiceWorker, subscribeToPush, requestNotificationPermission } from './lib/pushManager';
+import { registerServiceWorker, subscribeToPush } from './lib/pushManager';
 
 // Components
 import BottomNav from './components/BottomNav';
