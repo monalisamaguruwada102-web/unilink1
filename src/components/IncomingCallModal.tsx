@@ -15,12 +15,16 @@ export default function IncomingCallModal() {
     if (!session?.user?.id) return;
 
     // Listen globally for ANY incoming call offer targeted at this user
-    const channel = supabase.channel(`user_channel_${session.user.id}`)
-      .on('broadcast', { event: 'call_offer' }, async ({ payload }) => {
-        if (payload.to === session.user.id) {
+    const channelName = `user_channel_${session.user.id}`;
+    const channel = supabase.channel(channelName, { config: { broadcast: { self: true } } })
+      .on('broadcast', { event: 'call_offer' }, async (msg: any) => {
+        const { payload } = msg;
+        if (payload && payload.to === session.user.id) {
           // Verify we aren't already in the correct chat window so we dont overlay duplicate prompts
-          if (!window.location.pathname.includes(`/chat/${payload.matchId || payload.from}`)) {
-            
+          const currentPath = window.location.pathname;
+          const chatPath = `/chat/${payload.matchId || payload.from}`;
+          
+          if (!currentPath.includes(chatPath)) {
             // Fetch caller details for banner
             const { data } = await supabase.from('users').select('name, avatar_url').eq('id', payload.from).single();
             setCallerProfile(data);
@@ -29,14 +33,19 @@ export default function IncomingCallModal() {
           }
         }
       })
-      .on('broadcast', { event: 'call_end' }, ({ payload }) => {
-        if (payload.to === session.user.id || payload.from === session.user.id) {
+      .on('broadcast', { event: 'call_end' }, (msg: any) => {
+        const { payload } = msg;
+        if (payload && (payload.to === session.user.id || payload.from === session.user.id)) {
           setIncomingCall(null);
           setCallerProfile(null);
           stopLoop();
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('IncomingCallModal: Subscribed to globall call channel', channelName);
+        }
+      });
 
     return () => {
       stopLoop();

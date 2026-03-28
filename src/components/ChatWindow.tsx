@@ -206,7 +206,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
       globalChan.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           globalChan.send({ type: 'broadcast', event: 'call_end', payload: { from: session?.user.id, to: otherUser.id } });
-          supabase.removeChannel(globalChan);
+          setTimeout(() => supabase.removeChannel(globalChan), 2000);
         }
       });
     }
@@ -259,12 +259,22 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
         await pc.setLocalDescription(offer);
         presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_offer', payload: { offer, from: session?.user.id, to: otherUser.id } });
         
-        // Alert user globally natively so screen wake or cross-tab modal triggers seamlessly
+        // Alert user globally inside the app via broadcast
         const globalChan = supabase.channel(`user_channel_${otherUser.id}`);
         globalChan.subscribe((status) => {
           if (status === 'SUBSCRIBED') {
             globalChan.send({ type: 'broadcast', event: 'call_offer', payload: { matchId: matchId, offer, from: session?.user.id, to: otherUser.id } });
-            // Drop connection after dispatching alert to save quota
+            setTimeout(() => supabase.removeChannel(globalChan), 2000);
+          }
+        });
+
+        // Trigger an external PUSH NOTIFICATION for users who are offline or in the background
+        supabase.functions.invoke('push-notify', {
+          body: {
+            user_id: otherUser.id,
+            type: 'call',
+            match_id: matchId,
+            message: `${session?.user.user_metadata?.name || 'A Student'} is calling you! 🎙️`,
           }
         });
       }
