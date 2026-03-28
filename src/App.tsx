@@ -5,8 +5,10 @@ import { useAuthStore } from './store/useAuthStore';
 import { useFeatureStore } from './store/useFeatureStore';
 import { registerServiceWorker, subscribeToPush } from './lib/pushManager';
 
-// Components
-import BottomNav from './components/BottomNav';
+import IncomingCallModal from './components/IncomingCallModal';
+
+// Pages
+import Feed from './pages/Feed';
 
 // Pages
 import Auth from './pages/Auth';
@@ -162,6 +164,7 @@ function AppLayout({ isDarkMode }: { isDarkMode: boolean }) {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {!isChat && <BottomNav />}
+      <IncomingCallModal />
     </div>
   );
 }

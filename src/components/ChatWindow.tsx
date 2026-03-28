@@ -157,6 +157,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
 
   const { session } = useAuthStore();
   const { isDarkMode } = useFeatureStore();
+  const searchParams = new URLSearchParams(window.location.search);
   const bottomRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -199,6 +200,13 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     setCallStatus('idle');
     if (notify) {
       presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_end', payload: { to: otherUser.id } });
+      const globalChan = supabase.channel(`user_channel_${otherUser.id}`);
+      globalChan.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          globalChan.send({ type: 'broadcast', event: 'call_end', payload: { from: session?.user.id, to: otherUser.id } });
+          supabase.removeChannel(globalChan);
+        }
+      });
     }
   }, [otherUser.id]);
 
@@ -211,7 +219,9 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
 
   const initCall = async (isCaller: boolean) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
+      });
       localStream.current = stream;
       const pc = new RTCPeerConnection(ICE_CONFIG);
       peerConnection.current = pc;
@@ -238,6 +248,15 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_offer', payload: { offer, from: session?.user.id, to: otherUser.id } });
+        
+        // Alert user globally natively so screen wake or cross-tab modal triggers seamlessly
+        const globalChan = supabase.channel(`user_channel_${otherUser.id}`);
+        globalChan.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            globalChan.send({ type: 'broadcast', event: 'call_offer', payload: { matchId: matchId, offer, from: session?.user.id, to: otherUser.id } });
+            // Drop connection after dispatching alert to save quota
+          }
+        });
       }
     } catch (err) {
       console.error('Call failed:', err);
@@ -436,14 +455,26 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     };
   }, [callStatus]);
 
+  // Handle global cross-tab Accept Call redirect
+  useEffect(() => {
+    if (searchParams.get('answer') === 'true' && callStatus === 'idle') {
+      acceptCall();
+      // Silently clean URL to prevent refresh loops
+      window.history.replaceState({}, '', `/chat/${matchId}`);
+    }
+  }, [searchParams.get('answer'), callStatus]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
   // ─── Voice recording ──────────────────────────────────────────────────────
   const startRecording = async () => {
+    if (isRecording || mediaRecorderRef.current?.state === 'recording') return; // Prevent overlapping orphan recorders
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { echoCancellation: true, noiseSuppression: true } 
+      });
       // Pick best available codec
       const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg', 'audio/mp4'].find(m => MediaRecorder.isTypeSupported(m)) || 'audio/webm';
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
@@ -451,7 +482,9 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
       audioChunksRef.current = [];
       mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       mediaRecorder.onstop = async () => {
-        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        const chunks = [...audioChunksRef.current];
+        audioChunksRef.current = []; // flush immediately
+        const blob = new Blob(chunks, { type: mimeType });
         await uploadVoiceNote(blob, mimeType);
       };
       mediaRecorder.start(100); // collect every 100ms for lower latency
