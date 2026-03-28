@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
 
 interface Story {
@@ -127,7 +128,9 @@ interface FeatureState {
   updatePresence: (userId: string) => Promise<void>;
 }
 
-export const useFeatureStore = create<FeatureState>((set, get) => ({
+export const useFeatureStore = create<FeatureState>()(
+  persist(
+    (set, get) => ({
   isDarkMode: true,
   isIncognito: false,
   isLurkMode: false,
@@ -609,4 +612,13 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       console.error('Presence sync failed:', err);
     }
   }
-}));
+    }),
+    {
+      name: 'campus-feature-store',
+      partialize: (state) => ({
+        courseGroups: state.courseGroups,
+        isDarkMode: state.isDarkMode,
+      }),
+    }
+  )
+);

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
-import { Send, ArrowLeft, Mic, Smile, MoreVertical, Play, User, MapPin, Grid, Pause, Check } from 'lucide-react';
+import { Send, ArrowLeft, Mic, Smile, MoreVertical, Play, User, MapPin, Grid, Pause, Check, Phone, PhoneOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
@@ -166,6 +166,67 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   const presenceChannelRef = useRef<any>(null);
   const msgsContainerRef = useRef<HTMLDivElement>(null);
 
+  const [callStatus, setCallStatus] = useState<'idle' | 'calling' | 'ringing' | 'connected'>('idle');
+  const peerConnection = useRef<RTCPeerConnection | null>(null);
+  const localStream = useRef<MediaStream | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const incomingOfferRef = useRef<any>(null);
+
+  const endCall = useCallback((notify = true) => {
+    if (peerConnection.current) { peerConnection.current.close(); peerConnection.current = null; }
+    if (localStream.current) { localStream.current.getTracks().forEach(t => t.stop()); localStream.current = null; }
+    setCallStatus('idle');
+    if (notify) {
+      presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_end', payload: { to: otherUser.id } });
+    }
+  }, [otherUser.id]);
+
+  const initCall = async (isCaller: boolean) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      localStream.current = stream;
+      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      peerConnection.current = pc;
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+      pc.ontrack = (event) => {
+        if (remoteAudioRef.current && event.streams[0]) {
+          remoteAudioRef.current.srcObject = event.streams[0];
+        }
+      };
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          presenceChannelRef.current?.send({ type: 'broadcast', event: 'ice_candidate', payload: { candidate: event.candidate, to: otherUser.id } });
+        }
+      };
+
+      if (isCaller) {
+        setCallStatus('calling');
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_offer', payload: { offer, from: session?.user.id, to: otherUser.id } });
+      }
+    } catch (err) {
+      console.error('Call failed:', err);
+      alert('Could not access microphone.');
+      endCall(true);
+    }
+  };
+
+  const acceptCall = async () => {
+    await initCall(false);
+    if (!peerConnection.current || !incomingOfferRef.current) return;
+    try {
+      await peerConnection.current.setRemoteDescription(new RTCSessionDescription(incomingOfferRef.current));
+      const answer = await peerConnection.current.createAnswer();
+      await peerConnection.current.setLocalDescription(answer);
+      presenceChannelRef.current?.send({ type: 'broadcast', event: 'call_answer', payload: { answer, from: session?.user.id, to: otherUser.id } });
+      setCallStatus('connected');
+    } catch(e) {
+      endCall(true);
+    }
+  };
+
   // ── Derived online status from last_seen (fallback) ──────────────────────
   const isOnlineByLastSeen = otherUser.last_seen
     ? new Date().getTime() - new Date(otherUser.last_seen).getTime() < 180000
@@ -266,6 +327,30 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
           setIsOtherOnline(true);
         }
       })
+      .on('broadcast', { event: 'call_offer' }, async (payload: any) => {
+        if (payload.payload.to === session?.user.id) {
+          setCallStatus('ringing');
+          incomingOfferRef.current = payload.payload.offer;
+        }
+      })
+      .on('broadcast', { event: 'call_answer' }, async (payload: any) => {
+        if (payload.payload.to === session?.user.id && peerConnection.current) {
+          await peerConnection.current.setRemoteDescription(new RTCSessionDescription(payload.payload.answer));
+          setCallStatus('connected');
+        }
+      })
+      .on('broadcast', { event: 'ice_candidate' }, async (payload: any) => {
+        if (payload.payload.to === session?.user.id && peerConnection.current) {
+          try { await peerConnection.current.addIceCandidate(new RTCIceCandidate(payload.payload.candidate)); } catch(e){}
+        }
+      })
+      .on('broadcast', { event: 'call_end' }, async (payload: any) => {
+        if (payload.payload.to === session?.user.id) {
+          if (peerConnection.current) { peerConnection.current.close(); peerConnection.current = null; }
+          if (localStream.current) { localStream.current.getTracks().forEach((t:any) => t.stop()); localStream.current = null; }
+          setCallStatus('idle');
+        }
+      })
       .subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
           // Announce our presence every 25s
@@ -325,7 +410,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
       setIsRecording(false);
@@ -457,10 +542,17 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
             </div>
           </div>
 
-          {/* Three-dot menu */}
-          <div className="relative">
+          {/* Three-dot menu and Call */}
+          <div className="flex items-center gap-1">
             <button
-              onClick={() => setShowMenu(m => !m)}
+              onClick={() => initCall(true)}
+              className={`p-2.5 rounded-2xl transition opacity-70 hover:opacity-100 ${isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'}`}
+            >
+              <Phone size={18} />
+            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowMenu(m => !m)}
               className={`p-2.5 rounded-2xl transition ${showMenu ? (isDarkMode ? 'bg-gray-700' : 'bg-gray-100') : 'opacity-40 hover:opacity-100'}`}
             >
               <MoreVertical size={18} />
@@ -503,6 +595,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
                 </motion.div>
               )}
             </AnimatePresence>
+            </div>
           </div>
         </div>
       </header>
@@ -744,6 +837,64 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── WEB RTC CALL UI OVERLAY ────────────────────────────────────────── */}
+      <AnimatePresence>
+        {callStatus !== 'idle' && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.05 }}
+            className={`fixed inset-0 z-[70] flex flex-col items-center justify-center ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-white text-gray-900'}`}
+          >
+            <div className="relative mb-12">
+              <div className="w-32 h-32 rounded-full overflow-hidden z-10 relative border-4 border-primary-500 shadow-2xl">
+                {otherUser.avatar_url ? (
+                  <img src={otherUser.avatar_url} className="w-full h-full object-cover" alt="" />
+                ) : (
+                  <div className="w-full h-full bg-primary-500 flex items-center justify-center text-white font-black text-6xl">
+                    {otherUser.name.charAt(0)}
+                  </div>
+                )}
+              </div>
+              {(callStatus === 'calling' || callStatus === 'ringing') && (
+                <span className="absolute inset-0 rounded-full border-[6px] border-primary-500 animate-ping opacity-30" />
+              )}
+            </div>
+            
+            <h2 className="text-3xl font-black mb-2 tracking-tight">{otherUser.name}</h2>
+            <p className="opacity-50 font-black uppercase tracking-widest text-sm mb-16 flex items-center gap-2">
+              {callStatus === 'calling' ? (
+                <>Calling... <span className="w-2 h-2 rounded-full animate-bounce bg-current" /></>
+              ) : callStatus === 'ringing' ? (
+                <>Incoming Voice Call <span className="w-2 h-2 rounded-full animate-pulse bg-current" /></>
+              ) : (
+                <><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Connected</>
+              )}
+            </p>
+
+            <div className="flex items-center gap-8">
+              {callStatus === 'ringing' && (
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={acceptCall}
+                  className="w-16 h-16 rounded-[2rem] bg-green-500 text-white flex justify-center items-center shadow-2xl shadow-green-500/30 font-black"
+                >
+                  <Phone size={24} className="animate-pulse" />
+                </motion.button>
+              )}
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => endCall(true)}
+                className="w-16 h-16 rounded-[2rem] bg-red-500 text-white flex justify-center items-center shadow-2xl shadow-red-500/30"
+              >
+                <PhoneOff size={24} />
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <audio ref={remoteAudioRef} autoPlay />
     </div>
   );
 }
