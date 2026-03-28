@@ -564,7 +564,7 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
     
     try {
       // 1. Upload to Supabase Storage
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('post-images') // fallback to this if messages bucket doesn't exist
         .upload(fileName, blob, { 
           contentType: cleanMimeType,
