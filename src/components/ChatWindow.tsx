@@ -508,11 +508,13 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
-      mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mediaRecorder.ondataavailable = (e) => { 
+        if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data); 
+      };
       mediaRecorder.onstop = async () => {
-        const chunks = [...audioChunksRef.current];
-        audioChunksRef.current = []; // flush immediately
-        const blob = new Blob(chunks, { type: mimeType });
+        if (audioChunksRef.current.length === 0) return;
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        audioChunksRef.current = []; // flush immediately after creating blob
         await uploadVoiceNote(blob, mimeType);
       };
       mediaRecorder.start(100); // collect every 100ms for lower latency
@@ -534,17 +536,37 @@ export default function ChatWindow({ matchId, otherUser, onBack }: ChatWindowPro
   };
 
   const uploadVoiceNote = async (blob: Blob, mimeType: string) => {
-    if (!session) return;
+    if (!session || blob.size < 100) return; // Ignore empty/corrupt recordings
     setUploading(true);
-    const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'mp4' : 'webm';
-    const fileName = `${session.user.id}/voice_${Date.now()}.${ext}`;
+    
+    // Clean MIME type to remove codec info which can confuse some storage filters
+    const cleanMimeType = mimeType.split(';')[0];
+    const ext = cleanMimeType.includes('ogg') ? 'ogg' : cleanMimeType.includes('mp4') ? 'mp4' : 'webm';
+    const fileName = `messages/${session.user.id}/voice_${Date.now()}.${ext}`;
+    
     try {
-      const { error } = await supabase.storage.from('post-images').upload(fileName, blob, { contentType: mimeType });
+      // 1. Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('post-images') // fallback to this if messages bucket doesn't exist
+        .upload(fileName, blob, { 
+          contentType: cleanMimeType,
+          upsert: true 
+        });
+
       if (error) throw error;
-      const { data: urlData } = supabase.storage.from('post-images').getPublicUrl(fileName);
-      await handleSend(urlData.publicUrl, 'voice');
+
+      // 2. Get Public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('post-images')
+        .getPublicUrl(fileName);
+
+      if (!publicUrl) throw new Error('Failed to generate public URL');
+
+      // 3. Send Message
+      await handleSend(publicUrl, 'voice');
     } catch (err: any) {
-      alert(`❌ Voice note failed: ${err.message ?? 'Upload error'}. Check Supabase storage bucket permissions.`);
+      console.error('Voice record error:', err);
+      alert(`❌ Voice note failed: ${err.message || 'Check storage permissions'}`);
     } finally {
       setUploading(false);
     }

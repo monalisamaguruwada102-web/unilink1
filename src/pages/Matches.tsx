@@ -291,12 +291,6 @@ export default function Matches() {
                          ? 'bg-green-500' 
                          : 'bg-gray-400'
                        }`} />
-                       {/* Unread Messages Badge */}
-                       {unreadCounts[match.id] > 0 && (
-                         <div className="absolute top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white shadow ring-2 ring-white dark:ring-gray-900 px-1">
-                           {unreadCounts[match.id] > 99 ? '99+' : unreadCounts[match.id]}
-                         </div>
-                       )}
                     </div>
                     
                     <div className="flex-1 overflow-hidden">
@@ -304,16 +298,23 @@ export default function Matches() {
                            <div className="flex items-center gap-1.5 truncate">
                              <h3 className="font-black text-base truncate">{match.user.name}</h3>
                            </div>
-                           <span className="text-[9px] opacity-30 font-bold uppercase tracking-widest shrink-0">
-                             {new Date(match.matchedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                           </span>
+                           <div className="flex flex-col items-end gap-1">
+                              <span className={`text-[9px] font-bold uppercase tracking-widest shrink-0 ${unreadCounts[match.id] > 0 ? 'text-green-500' : 'opacity-30'}`}>
+                                {new Date(match.matchedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                              </span>
+                              {unreadCounts[match.id] > 0 && (
+                                <div className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-500 text-[10px] font-black text-white shadow-lg px-1 animate-in zoom-in duration-300">
+                                  {unreadCounts[match.id] > 99 ? '99+' : unreadCounts[match.id]}
+                                </div>
+                              )}
+                           </div>
                         </div>
                        <p className="text-[10px] font-bold text-primary-500 uppercase tracking-widest mb-1 truncate">
                          {formatTimeAgo(match.user.last_seen)}
                        </p>
-                       <p className="text-xs opacity-50 font-medium truncate italic pr-4">
+                       <p className={`text-xs font-medium truncate pr-4 ${unreadCounts[match.id] > 0 ? 'opacity-100 text-white dark:text-white font-black' : 'opacity-50'}`}>
                          {match.lastMessage 
-                           ? (match.lastMessage.type === 'sticker' ? 'Sent a sticker' : match.lastMessage.type === 'voice' ? 'Sent a voice note' : match.lastMessage.content)
+                           ? (match.lastMessage.type === 'sticker' ? 'Sent a sticker 🖼️' : match.lastMessage.type === 'voice' ? 'Sent a voice note 🎙️' : match.lastMessage.content)
                            : 'Tap to start chatting...'}
                        </p>
                     </div>

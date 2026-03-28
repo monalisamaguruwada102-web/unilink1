@@ -51,12 +51,12 @@ export default function BottomNav() {
                   )}
                 />
                 {item.label === 'Matches' && globalUnreadMessages > 0 && (
-                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-red-500 text-white text-[8px] flex items-center justify-center rounded-full font-black border-2 border-white dark:border-gray-900 px-1 z-20">
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-green-500 text-white text-[8px] flex items-center justify-center rounded-full font-black border-2 border-white dark:border-gray-900 px-1 z-20 shadow-lg">
                     {globalUnreadMessages > 99 ? '99+' : globalUnreadMessages}
                   </span>
                 )}
                 {item.label === 'Feed' && unreadNotifs > 0 && (
-                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-red-500 text-white text-[8px] flex items-center justify-center rounded-full font-black border-2 border-white dark:border-gray-900 px-1 z-20">
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-green-500 text-white text-[8px] flex items-center justify-center rounded-full font-black border-2 border-white dark:border-gray-900 px-1 z-20 shadow-lg">
                     {unreadNotifs > 99 ? '99+' : unreadNotifs}
                   </span>
                 )}
