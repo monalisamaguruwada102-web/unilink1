@@ -1,11 +1,10 @@
 import { useAuthStore } from '../store/useAuthStore';
 import { Phone, PhoneOff, User } from 'lucide-react';
 import { useCallStore } from '../store/useCallStore';
-import { supabase } from '../lib/supabase';
 
 export default function IncomingCallModal() {
   const { session } = useAuthStore();
-  const { callStatus, otherUser, incomingOffer, acceptCall, endCall, matchId } = useCallStore();
+  const { callStatus, otherUser, incomingOffer, acceptCall, endCall } = useCallStore();
 
   // This modal only shows if we are explicitly in 'ringing' status
   // and NOT currently in an active connected call (handled by ActiveCallOverlay)
