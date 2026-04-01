@@ -97,6 +97,11 @@ export default function Discover() {
 
   const handleLike = async (profileId: string) => {
     if (!session) return;
+
+    // ✅ Remove from UI immediately to prevent flicker during async calls
+    if (!searchQuery) {
+      setProfiles(prev => prev.filter(p => p.id !== profileId));
+    }
     
     // Record the like
     await supabase.from('likes').upsert({ liker_id: session.user.id, liked_id: profileId });
@@ -147,9 +152,6 @@ export default function Discover() {
       setMatchedUser(matchedProfile);
     }
 
-    if (!searchQuery) {
-      setProfiles(prev => prev.filter(p => p.id !== profileId));
-    }
   };
 
   const { addToCrushList, crushList } = useFeatureStore();
