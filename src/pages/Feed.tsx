@@ -2,6 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
+import type { Post, Story, Confession } from '../store/useFeatureStore';
+
+export interface Comment {
+  id: string;
+  post_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  users?: { name: string; avatar_url: string };
+}
 import { supabase } from '../lib/supabase';
 import { Heart, MessageCircle, X, Plus, Hash, Trash2, Sparkles, Bell, CheckCircle2, MoreVertical, Image as ImageIcon, Send, Smile, TrendingUp, Users, Flag, Copy, Share2 } from 'lucide-react';
 
@@ -21,19 +31,19 @@ export default function Feed() {
   const DEPARTMENTS = ['IT', 'Engineering', 'Commerce', 'Science', 'Arts'];
 
   const [showPollModal, setShowPollModal] = useState(false);
-  const [activeStory, setActiveStory] = useState<any>(null);
-  const [activeCommentsPost, setActiveCommentsPost] = useState<any>(null);
+  const [activeStory, setActiveStory] = useState<Story | null>(null);
+  const [activeCommentsPost, setActiveCommentsPost] = useState<Post | null>(null);
 
   // Form State
   const [postContent, setPostContent] = useState('');
   const [postFile, setPostFile] = useState<File | null>(null);
   const [postPreview, setPostPreview] = useState('');
   const [commentText, setCommentText] = useState('');
-  const [activeComments, setActiveComments] = useState<any[]>([]);
+  const [activeComments, setActiveComments] = useState<Comment[]>([]);
   const [confessionText, setConfessionText] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [activeConfession, setActiveConfession] = useState<any>(null);
-  const [confessionComments, setConfessionComments] = useState<any[]>([]);
+  const [activeConfession, setActiveConfession] = useState<Confession | null>(null);
+  const [confessionComments, setConfessionComments] = useState<Comment[]>([]);
   const [confessionCommentText, setConfessionCommentText] = useState('');
 
   // Story state
@@ -184,10 +194,10 @@ export default function Feed() {
     setShowPollModal(false);
   };
   
-  const UserBadges = ({ user, post }: { user: any, post?: any }) => {
+  const UserBadges = ({ user, post }: { user: Post['users'], post?: Post }) => {
     const badges = [];
     if (user?.is_verified) badges.push({ icon: <Sparkles size={10} />, label: 'Verified', color: 'text-blue-500 bg-blue-500/10' });
-    if (post?.likes > 5) badges.push({ icon: <TrendingUp size={10} />, label: 'Trending', color: 'text-orange-500 bg-orange-500/10' });
+    if ((post?.likes || 0) > 5) badges.push({ icon: <TrendingUp size={10} />, label: 'Trending', color: 'text-orange-500 bg-orange-500/10' });
     if (user?.course === profile?.course) badges.push({ icon: <Users size={10} />, label: 'Course Mate', color: 'text-indigo-500 bg-indigo-500/10' });
     
     return (
@@ -203,7 +213,7 @@ export default function Feed() {
 
   const handleDeletePost = (postId: string) => {
     if (!confirm('Are you sure you want to delete this post?')) return;
-    deletePost(postId).catch((err: any) => alert(err.message));
+    deletePost(postId).catch((err: Error) => alert(err.message));
   };
 
   const timeAgo = (date: string) => {
@@ -435,7 +445,7 @@ export default function Feed() {
                   <div onClick={() => setShowConfessionModal(true)} className={`flex-shrink-0 w-60 p-6 rounded-[2rem] border-2 border-dashed cursor-pointer transition hover:border-pink-500/40 ${isDarkMode ? 'border-gray-800 text-gray-500' : 'border-gray-200 text-gray-400'}`}>
                     <p className="text-[10px] font-black uppercase tracking-widest text-center">Be the first to whisper...</p>
                   </div>
-                ) : confessions.map(confession => (
+                ) : confessions.map((confession: Confession) => (
                   <div
                     key={confession.id}
                     className={`flex-shrink-0 w-64 p-5 rounded-[2rem] border flex flex-col justify-between transition-all hover:shadow-lg ${
@@ -486,7 +496,7 @@ export default function Feed() {
         <div className="space-y-6 pb-20">
           {loading ? (
             <div className="text-center py-20 opacity-20 font-black text-[10px] uppercase tracking-widest animate-pulse">Syncing Campus Vibrations...</div>
-          ) : posts.map(post => (
+          ) : posts.map((post: Post) => (
             <motion.div 
               key={post.id} 
               initial={{ opacity: 0, y: 20 }}
@@ -991,7 +1001,7 @@ export default function Feed() {
                   {confessionComments.length === 0 && (
                     <p className="text-center py-12 opacity-30 font-black text-[10px] uppercase tracking-[0.2em]">No discussions yet.<br/>Be the first to chime in!</p>
                   )}
-                  {confessionComments.map((c: any) => (
+                  {confessionComments.map((c: Comment) => (
                     <div key={c.id} className="flex gap-4">
                       <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
                         {c.users?.avatar_url ? <img src={c.users.avatar_url} className="w-full h-full object-cover" alt="" /> : null}

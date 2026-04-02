@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
 
-interface Story {
+export interface Story {
   id: string;
   user_id: string;
   user_name: string;
@@ -13,21 +13,22 @@ interface Story {
   poll_options?: string[];
   poll_results?: number[];
   is_verified?: boolean;
+  users?: { name: string; avatar_url: string };
 }
 
-interface PollOption {
+export interface PollOption {
   label: string;
   votes: number;
 }
 
-interface Poll {
+export interface Poll {
   id: string;
   question: string;
   options: PollOption[];
   creator_id?: string;
 }
 
-interface CourseGroup {
+export interface CourseGroup {
   id: string;
   name: string;
   course: string;
@@ -38,7 +39,7 @@ interface CourseGroup {
   users?: { name: string; avatar_url: string };
 }
 
-interface Post {
+export interface Post {
   id: string;
   user_id: string;
   content: string;
@@ -50,12 +51,12 @@ interface Post {
   is_liked?: boolean;
 }
 
-interface PostLike {
+export interface PostLike {
   post_id: string;
   user_id: string;
 }
 
-interface Confession {
+export interface Confession {
   id: string;
   content: string;
   tags: string[];
@@ -65,10 +66,21 @@ interface Confession {
   created_at: string;
 }
 
-interface StoryPollResponse {
+export interface StoryPollResponse {
   story_id: string;
   user_id: string;
   option_index: number;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: 'like' | 'comment' | 'match' | 'system' | 'confession_viral';
+  content: string;
+  is_read: boolean;
+  created_at: string;
+  link?: string;
+  users?: { name: string; avatar_url: string };
 }
 
 interface FeatureState {
@@ -85,7 +97,7 @@ interface FeatureState {
   currentPoll: Poll | null;
   courseGroups: CourseGroup[];
   confessions: Confession[];
-  notifications: any[];
+  notifications: Notification[];
   postLikes: PostLike[];
   crushList: string[];
   storyPollResponses: StoryPollResponse[];
@@ -599,9 +611,9 @@ export const useFeatureStore = create<FeatureState>()(
           }));
         }
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload: any) => {
         set((state) => ({ 
-           notifications: [payload.new, ...state.notifications]
+           notifications: [payload.new as Notification, ...state.notifications]
         }));
         
         // Audio Triggers
