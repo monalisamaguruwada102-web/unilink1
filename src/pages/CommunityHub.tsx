@@ -105,11 +105,20 @@ export default function CommunityHub() {
                 <div>
                   <p className="font-black text-sm mb-0.5">{group.name}</p>
                   <p className="text-[10px] opacity-40 font-bold uppercase tracking-widest">{group.course}</p>
-                  <div className="flex items-center gap-1 mt-1.5">
-                    <Users size={10} className="text-primary-500 opacity-60" />
-                    <p className="text-[9px] font-black text-primary-500 opacity-60 uppercase tracking-widest">
-                      {group.member_count || 0} members
-                    </p>
+                  <div className="flex items-center gap-3 mt-1.5">
+                    <div className="flex items-center gap-1">
+                      <Users size={10} className="text-primary-500 opacity-60" />
+                      <p className="text-[9px] font-black text-primary-500 opacity-60 uppercase tracking-widest">
+                        {group.member_count || 0} members
+                      </p>
+                    </div>
+                    {/* Activity Indicator — Viral Hook */}
+                    {(Math.random() > 0.5 || group.member_count && group.member_count > 0) && (
+                       <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20">
+                          <span className="w-1 h-1 bg-green-500 rounded-full animate-pulse" />
+                          <span className="text-[8px] font-black text-green-500 uppercase tracking-widest">Live Now</span>
+                       </div>
+                    )}
                   </div>
                 </div>
               </div>

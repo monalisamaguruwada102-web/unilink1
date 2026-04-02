@@ -32,14 +32,19 @@ export default function GroupChat() {
   const [showMembers, setShowMembers] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+
   useEffect(() => {
-    if (!groupId) return;
+    if (!groupId || !session) return;
     fetchGroupData();
     fetchMessages();
     fetchMembers();
 
-    const channel = supabase
-      .channel(`group_chat_${groupId}`)
+    const channel = supabase.channel(`group_chat_${groupId}`, {
+      config: { presence: { key: session.user.id } }
+    });
+
+    channel
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
@@ -60,10 +65,18 @@ export default function GroupChat() {
         table: 'group_members',
         filter: `group_id=eq.${groupId}`,
       }, () => fetchMembers())
-      .subscribe();
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        setOnlineUsers(Object.keys(state));
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ online_at: new Date().toISOString() });
+        }
+      });
 
-    return () => { supabase.removeChannel(channel); };
-  }, [groupId]);
+    return () => { channel.unsubscribe(); };
+  }, [groupId, session]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -119,7 +132,10 @@ export default function GroupChat() {
           </div>
           <div>
             <h2 className="font-black text-base">{groupInfo?.name || 'Group Chat'}</h2>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mt-0.5">{groupInfo?.course || 'Loading...'}</p>
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+              <p className="text-[10px] font-bold text-green-500 uppercase tracking-widest leading-none mt-0.5">{onlineUsers.length} Online Now</p>
+            </div>
           </div>
         </div>
         <button
@@ -128,7 +144,7 @@ export default function GroupChat() {
         >
           <Users size={20} />
           {members.length > 0 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary-500 text-white text-[9px] flex items-center justify-center rounded-full font-black">
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary-500 text-white text-[9px] flex items-center justify-center rounded-full font-black border-2 border-white dark:border-gray-900">
               {members.length}
             </span>
           )}
@@ -232,11 +248,16 @@ export default function GroupChat() {
                 ) : (
                   members.map((m) => (
                     <div key={m.user_id} className={`flex items-center gap-4 p-4 rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
-                      <div className="w-12 h-12 rounded-2xl overflow-hidden bg-primary-100 flex-shrink-0">
-                        {m.users?.avatar_url
-                          ? <img src={m.users.avatar_url} className="w-full h-full object-cover" alt="" />
-                          : <div className="w-full h-full flex items-center justify-center font-black text-primary-600 text-lg">{m.users?.name?.[0]}</div>
-                        }
+                      <div className="relative">
+                        <div className="w-12 h-12 rounded-2xl overflow-hidden bg-primary-100 flex-shrink-0">
+                          {m.users?.avatar_url
+                            ? <img src={m.users.avatar_url} className="w-full h-full object-cover" alt="" />
+                            : <div className="w-full h-full flex items-center justify-center font-black text-primary-600 text-lg">{m.users?.name?.[0]}</div>
+                          }
+                        </div>
+                        {onlineUsers.includes(m.user_id) && (
+                          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-gray-900 rounded-full" />
+                        )}
                       </div>
                       <div>
                         <p className="font-black text-sm">{m.users?.name}</p>
