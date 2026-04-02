@@ -15,6 +15,7 @@ export type UserProfile = {
   college: string | null;
   course: string | null;
   avatar_url: string | null;
+  crush_id?: string | null;
   last_seen?: string | null;
   latitude?: number | null;
   longitude?: number | null;

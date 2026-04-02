@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
-import { LogOut, Save, Camera, User, BookOpen, GraduationCap, MapPin, Navigation, Loader, BellRing } from 'lucide-react';
+import { LogOut, Save, Camera, User, BookOpen, GraduationCap, MapPin, Navigation, Loader, BellRing, Share2, Copy, Check, Zap } from 'lucide-react';
 import { AudioToggle } from '../components/features/SafetyAndTheme';
 import { requestNotificationPermission, subscribeToPush } from '../lib/pushManager';
 
@@ -26,6 +26,7 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [pushStatus, setPushStatus] = useState<NotificationPermission>('default');
+  const [copied, setCopied] = useState(false);
   
   const fileRef = useRef<HTMLInputElement>(null);
   const watchIdRef = useRef<number | null>(null);
@@ -152,6 +153,26 @@ export default function Profile() {
     }
   };
 
+  const handleCopyLink = () => {
+    const link = `${window.location.origin}/u/${profile?.crush_id}`;
+    navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShareLink = () => {
+    const link = `${window.location.origin}/u/${profile?.crush_id}`;
+    if (navigator.share) {
+      navigator.share({
+        title: 'UniLink Secret Crush',
+        text: `Send me an anonymous heart on UniLink! 🔥`,
+        url: link,
+      }).catch(console.error);
+    } else {
+      handleCopyLink();
+    }
+  };
+
   // Map thumbnail using OpenStreetMap static rendering
   const mapThumb = liveCoords
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${liveCoords.lng - 0.005}%2C${liveCoords.lat - 0.005}%2C${liveCoords.lng + 0.005}%2C${liveCoords.lat + 0.005}&layer=mapnik&marker=${liveCoords.lat}%2C${liveCoords.lng}`
@@ -206,17 +227,40 @@ export default function Profile() {
           </div>
         </div>
 
+        {/* 🚀 VIRAL SECRET LINK SECTION */}
+        <div className="bg-gradient-to-br from-primary-50 to-indigo-50 rounded-2xl shadow-sm border border-primary-100 p-6 space-y-4">
+          <div className="flex items-center gap-2 text-primary-500 text-xs font-black uppercase tracking-wider">
+             <Zap size={14} fill="currentColor" /> Viral Secret Crush Link
+          </div>
+          <p className="text-[10px] font-bold text-gray-500 leading-relaxed uppercase bg-white/50 p-3 rounded-xl border border-white">
+            Share this link on your <span className="text-green-600">WhatsApp Status</span>. Anyone who clicks can send you an anonymous heart. If they're in your crush list, it's a match!
+          </p>
+          <div className="flex items-stretc gap-2 h-12">
+             <div className="flex-1 bg-white border border-primary-100 rounded-xl px-4 flex items-center overflow-hidden">
+                <span className="text-[10px] font-bold text-primary-500/50 truncate">
+                   {window.location.origin}/u/{profile?.crush_id}
+                </span>
+             </div>
+             <button type="button" onClick={handleCopyLink} className="w-12 bg-white border border-primary-100 rounded-xl flex items-center justify-center text-primary-500 active:scale-90 transition shadow-sm">
+                {copied ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
+             </button>
+          </div>
+          <button type="button" onClick={handleShareLink} className="w-full py-4 bg-primary-500 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all">
+             <Share2 size={16} /> Share Link to Campus
+          </button>
+        </div>
+
         {/* Basic Info */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
           <div className="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase tracking-wider"><User size={14} /> Basic Information</div>
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">Full Name</label>
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="Full Name" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition" />
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="Full Name" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none transition" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">Gender</label>
-              <select value={gender} onChange={e => setGender(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition">
+              <select value={gender} onChange={e => setGender(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none transition">
                 <option value="">Select Gender...</option>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
@@ -224,7 +268,7 @@ export default function Profile() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">Age</label>
-              <input value={age} onChange={e => setAge(e.target.value)} type="number" placeholder="Age" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition" />
+              <input value={age} onChange={e => setAge(e.target.value)} type="number" placeholder="Age" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none transition" />
             </div>
           </div>
         </div>
@@ -235,11 +279,11 @@ export default function Profile() {
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">College / University</label>
-              <input value={college} onChange={e => setCollege(e.target.value)} placeholder="e.g. Kwekwe Polytechnic" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition" />
+              <input value={college} onChange={e => setCollege(e.target.value)} placeholder="e.g. Kwekwe Polytechnic" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none transition" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1 ml-1">Course / Department</label>
-              <input value={course} onChange={e => setCourse(e.target.value)} placeholder="e.g. Computer Science" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-red-500 focus:ring-2 focus:ring-primary-500 outline-none transition" />
+              <input value={course} onChange={e => setCourse(e.target.value)} placeholder="e.g. Computer Science" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none transition" />
             </div>
           </div>
         </div>
@@ -365,7 +409,7 @@ export default function Profile() {
             placeholder="Tell us about yourself..."
             rows={4}
             maxLength={200}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-red-500 resize-none focus:ring-2 focus:ring-primary-500 outline-none transition"
+            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 resize-none focus:ring-2 focus:ring-primary-500 outline-none transition"
           />
           <p className="text-[10px] text-gray-400 text-right">{bio.length}/200</p>
         </div>
@@ -383,3 +427,4 @@ export default function Profile() {
     </div>
   );
 }
+

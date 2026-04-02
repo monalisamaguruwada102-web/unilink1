@@ -1,10 +1,63 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeatureStore } from '../store/useFeatureStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, X, MapPin, Search, MessageCircle, Info, User, GraduationCap, XCircle, Star, Sparkles, Filter, Users } from 'lucide-react';
+import { Heart, X, MapPin, Search, MessageCircle, Info, User, GraduationCap, XCircle, Star, Sparkles, Filter, Users, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
+// ── Vibe Score Engine ──────────────────────────────────────
+function calcVibeScore(me: any, them: any): number {
+  if (!me || !them) return 0;
+  let score = 0;
+  // Same course = huge match
+  if (me.course && them.course && me.course.toLowerCase() === them.course.toLowerCase()) score += 30;
+  // Same department
+  if (me.department && them.department && me.department === them.department) score += 20;
+  // Same campus zone
+  if (me.campus_zone && them.campus_zone && me.campus_zone === them.campus_zone) score += 15;
+  // Age proximity (within 2 years = high score)
+  if (me.age && them.age) {
+    const diff = Math.abs(me.age - them.age);
+    if (diff === 0) score += 20;
+    else if (diff <= 1) score += 14;
+    else if (diff <= 2) score += 8;
+    else if (diff <= 4) score += 3;
+  }
+  // Bio keyword overlap
+  if (me.bio && them.bio) {
+    const myWords = new Set(me.bio.toLowerCase().split(/\W+/).filter((w: string) => w.length > 3));
+    const theirWords = them.bio.toLowerCase().split(/\W+/).filter((w: string) => w.length > 3);
+    const shared = theirWords.filter((w: string) => myWords.has(w)).length;
+    score += Math.min(shared * 4, 15);
+  }
+  // Base compatibility — nobody scores 0
+  score += 10;
+  return Math.min(score, 99);
+}
+
+function VibeScoreBadge({ score }: { score: number }) {
+  const color = score >= 80 ? '#22c55e' : score >= 60 ? '#f59e0b' : score >= 40 ? '#6366f1' : '#94a3b8';
+  const label = score >= 80 ? 'Perfect Match' : score >= 60 ? 'Great Vibe' : score >= 40 ? 'Good Match' : 'New Vibe';
+  return (
+    <motion.div
+      initial={{ scale: 0, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ delay: 0.2, type: 'spring', stiffness: 300 }}
+      className="absolute top-4 left-4 z-30"
+    >
+      <div
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl backdrop-blur-md border border-white/20 shadow-2xl"
+        style={{ background: `${color}22`, borderColor: `${color}44` }}
+      >
+        <Zap size={10} style={{ color }} fill={color} />
+        <span className="text-[9px] font-black uppercase tracking-widest" style={{ color }}>
+          {score}% · {label}
+        </span>
+      </div>
+    </motion.div>
+  );
+}
 
 export default function Discover() {
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -404,13 +457,18 @@ export default function Discover() {
           /* Scrolling Feed View */
           <div className="flex flex-col gap-8 h-[calc(100vh-280px)] overflow-y-auto px-5 pb-32 hide-scrollbar snap-y snap-mandatory bg-transparent">
             <AnimatePresence>
-              {profiles.map((currentProfile) => (
+              {profiles.map((currentProfile) => {
+                const vibeScore = calcVibeScore(myProfile, currentProfile);
+                return (
                 <motion.div
                   key={currentProfile.id}
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   className={`relative w-full min-h-[65vh] h-[65vh] max-w-sm mx-auto rounded-[3.5rem] overflow-hidden shadow-2xl border-2 border-white/10 shrink-0 snap-start active:snap-none ${card}`}
                 >
+                {/* VibeScore Badge */}
+                <VibeScoreBadge score={vibeScore} />
+
                 {currentProfile.avatar_url ? (
                   <img src={currentProfile.avatar_url} alt={currentProfile.name} className="w-full h-full object-cover pointer-events-none" />
                 ) : (
@@ -491,7 +549,8 @@ export default function Discover() {
                 </div>
 
                 </motion.div>
-              ))}
+                );
+              })}
             </AnimatePresence>
           </div>
         )}
@@ -577,6 +636,32 @@ export default function Discover() {
                </div>
 
                <div className="flex-1 p-8 space-y-8 overflow-y-auto">
+                  {/* Vibe Score in detail modal */}
+                   {(() => {
+                     const vs = calcVibeScore(myProfile, selectedProfile);
+                     const color = vs >= 80 ? '#22c55e' : vs >= 60 ? '#f59e0b' : vs >= 40 ? '#6366f1' : '#94a3b8';
+                     return (
+                       <div className="p-4 rounded-2xl border flex items-center gap-4" style={{ background: `${color}11`, borderColor: `${color}33` }}>
+                         <div className="relative w-14 h-14 shrink-0">
+                           <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
+                             <circle cx="28" cy="28" r="24" fill="none" stroke={`${color}22`} strokeWidth="5" />
+                             <circle cx="28" cy="28" r="24" fill="none" stroke={color} strokeWidth="5"
+                               strokeDasharray={`${(vs / 100) * 150.8} 150.8`}
+                               strokeLinecap="round" />
+                           </svg>
+                           <span className="absolute inset-0 flex items-center justify-center text-[11px] font-black" style={{ color }}>{vs}%</span>
+                         </div>
+                         <div>
+                           <p className="text-[9px] font-black uppercase tracking-widest opacity-50 mb-0.5">Vibe Score</p>
+                           <p className="font-black text-sm" style={{ color }}>
+                             {vs >= 80 ? '🔥 Perfect Match!' : vs >= 60 ? '✨ Great Vibe' : vs >= 40 ? '👋 Good Match' : '🌱 Fresh Connection'}
+                           </p>
+                           <p className="text-[9px] opacity-40 font-bold mt-0.5">Based on course, zone & interests</p>
+                         </div>
+                       </div>
+                     );
+                   })()}
+
                   <div className="space-y-3">
                     <p className="text-[10px] font-black uppercase tracking-widest opacity-40 flex items-center gap-2">
                        <User size={14} /> About Student

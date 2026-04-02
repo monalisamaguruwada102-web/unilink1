@@ -20,6 +20,7 @@ import Chat from './pages/Chat';
 import Profile from './pages/Profile';
 import GroupChat from './pages/GroupChat';
 import Admin from './pages/Admin';
+import CrushLink from './pages/CrushLink';
 
 import AuthCallback from './pages/AuthCallback';
 
@@ -37,6 +38,13 @@ export default function App() {
          subscribeToDatabaseEvents(session.user.id);
          useCallStore.getState().startSignaling(session.user.id);
          
+         // 🚀 Check for pending viral crush link redirect
+         const pendingCrush = localStorage.getItem('pending_crush_id');
+         if (pendingCrush) {
+            localStorage.removeItem('pending_crush_id');
+            window.location.href = `/u/${pendingCrush}`;
+         }
+
          // Register push notifications (if already permitted)
          registerServiceWorker().then(() => {
            if (Notification.permission === 'granted') {
@@ -56,6 +64,13 @@ export default function App() {
          fetchGlobalUnread(session.user.id);
          subscribeToDatabaseEvents(session.user.id);
          useCallStore.getState().startSignaling(session.user.id);
+
+         // 🚀 Check for pending viral crush link redirect (also on auth change)
+         const pendingCrush = localStorage.getItem('pending_crush_id');
+         if (pendingCrush) {
+            localStorage.removeItem('pending_crush_id');
+            window.location.href = `/u/${pendingCrush}`;
+         }
       }
     });
 
@@ -138,6 +153,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/auth/callback" element={<AuthCallback />} />
+        {/* Viral landing pages are public but handle internal login */}
+        <Route path="/u/:crushId" element={<CrushLink />} />
         <Route 
           path="*" 
           element={
@@ -172,3 +189,4 @@ function AppLayout({ isDarkMode }: { isDarkMode: boolean }) {
     </div>
   );
 }
+

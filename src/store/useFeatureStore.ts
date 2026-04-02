@@ -59,6 +59,7 @@ interface Confession {
   id: string;
   content: string;
   tags: string[];
+  department?: string;
   likes: number;
   comment_count: number;
   created_at: string;
@@ -104,7 +105,7 @@ interface FeatureState {
   
   // Actions
   voteInPoll: (optionIndex: number) => Promise<void>;
-  submitConfession: (content: string, tags: string[]) => Promise<void>;
+  submitConfession: (content: string, tags: string[], department?: string) => Promise<void>;
   reactToConfession: (confessionId: string, userId: string) => Promise<void>;
   fetchConfessionComments: (confessionId: string) => Promise<any[]>;
   addConfessionComment: (confessionId: string, userId: string, content: string) => Promise<void>;
@@ -197,8 +198,8 @@ export const useFeatureStore = create<FeatureState>()(
   },
 
   // ── CONFESSIONS ─────────────────────────────────────────────────────
-  submitConfession: async (content, tags) => {
-    const { data } = await supabase.from('confessions').insert({ content, tags }).select().single();
+  submitConfession: async (content: string, tags: string[], department?: string) => {
+    const { data } = await supabase.from('confessions').insert({ content, tags, department }).select().single();
     if (data) set((state) => ({ confessions: [{ ...data, likes: 0, comment_count: 0 }, ...state.confessions] }));
   },
 

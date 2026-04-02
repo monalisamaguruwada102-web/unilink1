@@ -16,6 +16,10 @@ export default function Feed() {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showConfessionModal, setShowConfessionModal] = useState(false);
+  
+  const [confessionDept, setConfessionDept] = useState('');
+  const DEPARTMENTS = ['IT', 'Engineering', 'Commerce', 'Science', 'Arts'];
+
   const [showPollModal, setShowPollModal] = useState(false);
   const [activeStory, setActiveStory] = useState<any>(null);
   const [activeCommentsPost, setActiveCommentsPost] = useState<any>(null);
@@ -161,8 +165,9 @@ export default function Feed() {
   
   const handleAddConfession = async () => {
     if (!confessionText.trim()) return;
-    await submitConfession(confessionText, []);
+    await submitConfession(confessionText, [], confessionDept || profile?.course || '');
     setConfessionText('');
+    setConfessionDept('');
     setShowConfessionModal(false);
   };
   
@@ -702,18 +707,42 @@ export default function Feed() {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-md flex items-end">
             <motion.div 
                initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-               className={`w-full max-h-[90vh] rounded-t-[3.5rem] flex flex-col ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}
+               className={`w-full max-h-[90vh] rounded-t-[3.5rem] flex flex-col ${isDarkMode ? 'bg-gray-900 border-t border-gray-800' : 'bg-white border-t border-gray-100'}`}
             >
                <div className="p-8 flex items-center justify-between border-b border-gray-500/10">
-                  <h2 className="text-xl font-black italic tracking-tighter uppercase text-pink-500">Share a Secret</h2>
+                  <div className="flex flex-col">
+                    <h2 className="text-xl font-black italic tracking-tighter uppercase text-pink-500 leading-none">Share a Secret</h2>
+                    <span className="text-[8px] font-bold uppercase tracking-widest opacity-40 mt-1">100% Anonymous</span>
+                  </div>
                   <button onClick={() => setShowConfessionModal(false)} className="p-3 bg-gray-500/10 rounded-2xl"><X size={20} /></button>
                </div>
-               <div className="flex-1 overflow-y-auto p-8">
+               <div className="flex-1 overflow-y-auto p-8 space-y-6 lg:pb-24">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest opacity-40 px-1">Tag a Department (Optional)</label>
+                    <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
+                       <button 
+                         onClick={() => setConfessionDept('')}
+                         className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${!confessionDept ? 'bg-pink-500 text-white border-pink-500' : 'bg-transparent opacity-40 border-gray-500/20'}`}
+                       >
+                         Campus Wide
+                       </button>
+                       {DEPARTMENTS.map(d => (
+                         <button 
+                           key={d}
+                           onClick={() => setConfessionDept(d)}
+                           className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${confessionDept === d ? 'bg-pink-500 text-white border-pink-500' : 'bg-transparent opacity-40 border-gray-500/20'}`}
+                         >
+                           {d} Dept
+                         </button>
+                       ))}
+                    </div>
+                  </div>
+
                   <textarea 
                      value={confessionText}
                      onChange={e => setConfessionText(e.target.value)}
-                     placeholder="Whisper something anonymously..."
-                     className="w-full bg-transparent border-none outline-none text-lg font-medium resize-none min-h-[150px]"
+                     placeholder="Whisper something anonymously... students from tagged departments will be notified if it goes viral!"
+                     className="w-full bg-transparent border-none outline-none text-lg font-medium resize-none min-h-[150px] leading-relaxed"
                   />
                </div>
                <div className="p-8 border-t border-gray-500/10 space-y-4 pb-12">
